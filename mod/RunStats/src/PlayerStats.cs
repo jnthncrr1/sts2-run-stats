@@ -14,6 +14,9 @@ public sealed class PlayerStats
     [JsonPropertyName("vulnerable")] public long Vulnerable { get; set; }
     [JsonPropertyName("otherDebuffs")] public long OtherDebuffs { get; set; }
 
+    /// <summary>Enemy attack damage that did not happen because this player lowered the attacker's Strength.</summary>
+    [JsonPropertyName("damagePrevented")] public long DamagePrevented { get; set; }
+
     public PlayerStats Clone() => (PlayerStats)MemberwiseClone();
 
     public void Add(PlayerStats other)
@@ -23,6 +26,7 @@ public sealed class PlayerStats
         Weak += other.Weak;
         Vulnerable += other.Vulnerable;
         OtherDebuffs += other.OtherDebuffs;
+        DamagePrevented += other.DamagePrevented;
     }
 }
 
@@ -54,6 +58,12 @@ public sealed class RunStatsSnapshot
     /// </summary>
     [JsonPropertyName("stackLedger")] public Dictionary<string, Dictionary<string, long>> StackLedger { get; set; } = new();
 
+    /// <summary>
+    /// Player-caused Strength reductions still active on each enemy, oldest first, keyed by
+    /// enemy. Credit for prevented damage goes to the earliest reduction first.
+    /// </summary>
+    [JsonPropertyName("strengthLedger")] public Dictionary<string, List<StrengthReduction>> StrengthLedger { get; set; } = new();
+
     /// <summary>Net ID of the player whose card play most recently started; 0 if none.</summary>
     [JsonPropertyName("lastCardPlayNetId")] public ulong LastCardPlayNetId { get; set; }
 
@@ -70,6 +80,7 @@ public sealed class RunStatsSnapshot
     {
         InProgress.Clear();
         StackLedger.Clear();
+        StrengthLedger.Clear();
         LastCardPlayNetId = 0;
     }
 
@@ -97,4 +108,10 @@ public sealed class RunStatsSnapshot
         }
         return stats;
     }
+}
+
+public sealed class StrengthReduction
+{
+    [JsonPropertyName("netId")] public ulong NetId { get; set; }
+    [JsonPropertyName("amount")] public long Amount { get; set; }
 }

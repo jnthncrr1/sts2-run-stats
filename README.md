@@ -8,6 +8,7 @@ player (not just the host), and only one person in the lobby needs it installed.
 |---|---|
 | Damage | Unblocked damage dealt to enemies by the player or their pet (Osty), including relics, potions, Thorns and similar. Self-damage (Offering) and damage to allies never count. Poison, Demise, Strangle and Haunt deal their damage with no dealer recorded; see below for how they are credited. |
 | Block | Block gained from cards the player played (credited to the card's owner, so block given to an ally counts for the giver). |
+| Prevented | Enemy attack damage that did not happen because the player lowered the attacker's Strength (Piercing Wail, Dark Shackles, Strength-down effects). |
 | Weak / Vulnerable | Stacks applied to enemies. |
 | Other debuffs | Stacks of any other debuff-type power applied to enemies (Poison, Frail, Strength down, ...). |
 
@@ -24,6 +25,13 @@ Dealer-less damage is credited like this:
   their stacks; Poison's one-per-turn decrement is taken from whoever owns the most stacks
   (ties broken by lowest net ID). Stacks applied by monsters are not owned by anyone and
   their share of a tick is uncredited.
+
+Prevented damage: every Strength reduction a player puts on an enemy goes into an ordered
+ledger for that enemy, and temporary ones leave it when they expire. For each enemy attack the
+mod re-runs the game's damage pipeline with the reductions restored one at a time, oldest
+first, and credits each player with the difference their reduction made. Once an attack is
+already at zero, later reductions earn nothing. Weak and Vulnerable are not tracked this way
+because their multiplicative effect has no equally clean attribution.
 
 ## Layout
 
@@ -104,9 +112,11 @@ discards the in-progress portion and resumes from the last finished combat.
 Every client in a multiplayer run executes the full deterministic combat simulation,
 and the game records each action in `CombatManager.Instance.History` (damage received,
 block gained, power received, each tagged with the responsible creature). The mod
-subscribes to that history's `Changed` event for everything except Doom kills, which have
-no history entry and are observed with a single read-only Harmony prefix. Nothing the mod
-does changes game state, so it cannot affect gameplay or cause desyncs. `affects_gameplay` is false in the manifest, which
+subscribes to that history's `Changed` event for everything except three read-only Harmony
+hooks: the Doom kill (no history entry), the damage pipeline (to replay it for prevented
+damage) and temporary Strength expiry. Every hook body is wrapped so a failure inside the mod
+only logs a warning. Nothing the mod does changes game state, so it cannot affect gameplay or
+cause desyncs. `affects_gameplay` is false in the manifest, which
 also keeps the game from treating it as a mod mismatch between players.
 
 ## Regenerating the decompiled reference

@@ -32,12 +32,12 @@
 </header>
 <table>
   <thead><tr>
-    <th>Player</th><th>Damage</th><th>Block</th><th>Weak</th><th>Vulnerable</th><th>Other debuffs</th>
+    <th>Player</th><th>Damage</th><th>Block</th><th>Prevented</th><th>Weak</th><th>Vulnerable</th><th>Other debuffs</th>
   </tr></thead>
-  <tbody id="rows"><tr><td colspan="6" class="empty">Waiting for a run…</td></tr></tbody>
+  <tbody id="rows"><tr><td colspan="7" class="empty">Waiting for a run…</td></tr></tbody>
 </table>
 <script>
-const cols = ["damage","block","weak","vulnerable","otherDebuffs"];
+const cols = ["damage","block","damagePrevented","weak","vulnerable","otherDebuffs"];
 const fmt = new Intl.NumberFormat();
 async function tick() {
   try {
@@ -61,7 +61,7 @@ function render(s) {
   for (const c of cols) max[c] = Math.max(0, ...s.players.map(p => p[c]));
   const body = document.getElementById("rows");
   body.innerHTML = "";
-  if (!s.players.length) { body.innerHTML = '<tr><td colspan="6" class="empty">No players yet</td></tr>'; return; }
+  if (!s.players.length) { body.innerHTML = '<tr><td colspan="7" class="empty">No players yet</td></tr>'; return; }
   for (const p of s.players) {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td class="name">${esc(p.name)}<small>${esc(p.character)}</small></td>` +

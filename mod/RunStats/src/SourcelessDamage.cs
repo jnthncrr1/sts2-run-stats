@@ -86,33 +86,44 @@ public static class SourcelessDamage
         long totalStacks = owned.Values.Sum();
         if (totalStacks <= 0) return;
 
-        var shares = owned
-            .Select(kv => (netId: ulong.Parse(kv.Key), exact: (double)hpAtDeath * kv.Value / totalStacks))
-            .Select(x => (x.netId, whole: (long)Math.Floor(x.exact), frac: x.exact - Math.Floor(x.exact)))
+        SplitProportionally(owned.Select(kv => (ulong.Parse(kv.Key), kv.Value)), hpAtDeath, credit);
+        snapshot.StackLedger.Remove(LedgerKey(doom));
+    }
+
+    /// <summary>
+    /// Pays each owner their stacks. When less was dealt than the stacks owned (the enemy had
+    /// less HP left), the shortfall is split proportionally with largest-remainder rounding.
+    /// </summary>
+    private static bool TryPayFromLedger(RunStatsSnapshot snapshot, PowerModel power, int dealt, Action<ulong, long> credit)
+    {
+        if (!snapshot.StackLedger.TryGetValue(LedgerKey(power), out var owned) || owned.Count == 0) return false;
+        long totalOwned = owned.Values.Sum();
+        if (totalOwned <= 0) return false;
+        if (dealt >= totalOwned)
+        {
+            foreach (var kv in owned) credit(ulong.Parse(kv.Key), kv.Value);
+            return true;
+        }
+        SplitProportionally(owned.Select(kv => (ulong.Parse(kv.Key), kv.Value)), dealt, credit);
+        return true;
+    }
+
+    /// <summary>Splits an integer total across weights so the shares sum exactly to the total.</summary>
+    public static void SplitProportionally(IEnumerable<(ulong netId, long weight)> weights, long total, Action<ulong, long> credit)
+    {
+        var list = weights.Where(w => w.weight > 0).ToList();
+        long weightSum = list.Sum(w => w.weight);
+        if (weightSum <= 0 || total <= 0) return;
+        var shares = list
+            .Select(w => { double exact = (double)total * w.weight / weightSum; long whole = (long)Math.Floor(exact); return (w.netId, whole, frac: exact - whole); })
             .ToList();
-        long leftover = hpAtDeath - shares.Sum(x => x.whole);
+        long leftover = total - shares.Sum(x => x.whole);
         foreach (var share in shares.OrderByDescending(x => x.frac).ThenBy(x => x.netId))
         {
             long amount = share.whole + (leftover > 0 ? 1 : 0);
             if (leftover > 0) leftover--;
             if (amount > 0) credit(share.netId, amount);
         }
-        snapshot.StackLedger.Remove(LedgerKey(doom));
-    }
-
-    /// <summary>Pays each owner their stacks, largest first, up to what was actually dealt.</summary>
-    private static bool TryPayFromLedger(RunStatsSnapshot snapshot, PowerModel power, int dealt, Action<ulong, long> credit)
-    {
-        if (!snapshot.StackLedger.TryGetValue(LedgerKey(power), out var owned) || owned.Count == 0) return false;
-        long remaining = dealt;
-        foreach (var kv in owned.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key))
-        {
-            if (remaining <= 0) break;
-            long share = Math.Min(kv.Value, remaining);
-            credit(ulong.Parse(kv.Key), share);
-            remaining -= share;
-        }
-        return true;
     }
 
     private static StranglePower? PickStrangle(Creature receiver, int dealt, ulong lastCardPlayer)

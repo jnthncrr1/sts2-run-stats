@@ -17,12 +17,19 @@ public static class DoomKillPatch
     [HarmonyPrefix]
     public static void Prefix(IReadOnlyList<Creature> creatures)
     {
-        foreach (Creature creature in creatures)
+        try
         {
-            if (creature.IsAlive && creature.CurrentHp > 0)
+            foreach (Creature creature in creatures)
             {
-                DoomKilled?.Invoke(creature, creature.CurrentHp);
+                if (creature.IsAlive && creature.CurrentHp > 0)
+                {
+                    DoomKilled?.Invoke(creature, creature.CurrentHp);
+                }
             }
+        }
+        catch (Exception e)
+        {
+            Godot.GD.PushWarning("[RunStats] Doom hook failed: " + e);
         }
     }
 }

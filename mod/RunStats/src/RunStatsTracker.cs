@@ -55,6 +55,7 @@ public sealed class RunStatsTracker
         {
             // A setup without a preceding CombatEnded is a restarted fight: drop the aborted attempt.
             snapshot.ClearInProgress();
+            StrengthMitigation.ClearPending();
             snapshot.InCombat = true;
             foreach (Player player in state.Players) RefreshIdentity(snapshot, player);
         });
@@ -86,7 +87,21 @@ public sealed class RunStatsTracker
         });
     }
 
-    private void Update(Action<RunStatsSnapshot> change)
+    /// <summary>Reads the run file without writing it back.</summary>
+    public void WithSnapshot(Action<RunStatsSnapshot> read)
+    {
+        if (_runKey.Length == 0) return;
+        try
+        {
+            read(StatsFile.Load(_runKey));
+        }
+        catch (Exception e)
+        {
+            GD.PushWarning("[RunStats] read failed: " + e);
+        }
+    }
+
+    public void Update(Action<RunStatsSnapshot> change)
     {
         if (_runKey.Length == 0) return;
         try
@@ -134,7 +149,12 @@ public sealed class RunStatsTracker
                 return;
             case DamageReceivedEntry damage:
             {
-                if (IsFriendly(damage.Receiver)) return;
+                if (IsFriendly(damage.Receiver))
+                {
+                    if (damage.Dealer != null && damage.Dealer.IsMonster)
+                        StrengthMitigation.CreditPending(damage.Dealer, damage.Receiver, (netId, amount) => InProgressFor(snapshot, netId).DamagePrevented += amount);
+                    return;
+                }
                 int dealt = damage.Result.UnblockedDamage;
                 if (dealt <= 0) return;
                 Player? owner = OwnerOf(damage.Dealer);
@@ -160,6 +180,7 @@ public sealed class RunStatsTracker
             {
                 if (IsFriendly(power.Power.Owner)) return;
                 SourcelessDamage.OnPowerChanged(snapshot, power);
+                StrengthMitigation.OnPowerChanged(snapshot, power);
                 Player? owner = OwnerOf(power.Applier);
                 if (owner == null) return;
                 if (power.Power.GetTypeForAmount(power.Amount) != PowerType.Debuff) return;
