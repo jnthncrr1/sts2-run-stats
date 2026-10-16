@@ -19,7 +19,8 @@ namespace RunStats;
 /// </summary>
 public sealed class RunStatsTracker
 {
-    private readonly Dictionary<ulong, PlayerStats> _players = new();
+    private readonly Dictionary<ulong, PlayerStats> _committed = new();
+    private readonly Dictionary<ulong, PlayerStats> _inProgress = new();
     private readonly Stopwatch _sinceLastWrite = Stopwatch.StartNew();
     private static readonly TimeSpan WriteThrottle = TimeSpan.FromMilliseconds(250);
 
@@ -44,7 +45,8 @@ public sealed class RunStatsTracker
     {
         _seed = state.Rng.StringSeed;
         _runKey = BuildRunKey(state);
-        _players.Clear();
+        _committed.Clear();
+        _inProgress.Clear();
         _combatsFinished = 0;
         _processedEntries = 0;
         _inCombat = false;
@@ -53,9 +55,11 @@ public sealed class RunStatsTracker
         RunStatsSnapshot? saved = StatsFile.Read(_runKey);
         if (saved != null)
         {
-            foreach (PlayerStats p in saved.Players) _players[p.NetId] = p;
+            // Files written before the committed/in-progress split only have display totals.
+            List<PlayerStats> source = saved.Committed.Count > 0 ? saved.Committed : saved.Players;
+            foreach (PlayerStats p in source) _committed[p.NetId] = p;
             _combatsFinished = saved.CombatsFinished;
-            GD.Print($"[RunStats] restored {saved.Players.Count} players for run {_runKey}");
+            GD.Print($"[RunStats] restored {source.Count} players for run {_runKey}");
         }
 
         foreach (Player player in state.Players) EnsurePlayer(player);
@@ -64,6 +68,8 @@ public sealed class RunStatsTracker
 
     private void OnCombatSetUp(CombatState state)
     {
+        // A new setup without a preceding CombatEnded is a restarted fight: drop the aborted attempt.
+        _inProgress.Clear();
         _inCombat = true;
         _processedEntries = 0;
         foreach (Player player in state.Players) EnsurePlayer(player);
@@ -73,6 +79,8 @@ public sealed class RunStatsTracker
     private void OnCombatEnded(CombatRoom room)
     {
         ProcessNewEntries();
+        foreach (PlayerStats delta in _inProgress.Values) Committed(delta.NetId).Add(delta);
+        _inProgress.Clear();
         _inCombat = false;
         _combatsFinished++;
         Flush(force: true);
@@ -115,7 +123,7 @@ public sealed class RunStatsTracker
                 if (IsFriendly(damage.Receiver)) return;
                 Player? owner = OwnerOf(damage.Dealer);
                 if (owner == null) return;
-                EnsurePlayer(owner).Damage += damage.Result.UnblockedDamage;
+                InProgress(owner).Damage += damage.Result.UnblockedDamage;
                 _dirty = true;
                 return;
             }
@@ -124,7 +132,7 @@ public sealed class RunStatsTracker
                 // Credit whoever played the card; fall back to the creature that received the block.
                 Player? owner = block.CardPlay?.Player ?? OwnerOf(block.Receiver);
                 if (owner == null || block.Amount <= 0) return;
-                EnsurePlayer(owner).Block += block.Amount;
+                InProgress(owner).Block += block.Amount;
                 _dirty = true;
                 return;
             }
@@ -137,7 +145,7 @@ public sealed class RunStatsTracker
                 if (type != PowerType.Debuff) return;
                 long stacks = (long)Math.Abs(power.Amount);
                 if (stacks == 0) return;
-                PlayerStats stats = EnsurePlayer(owner);
+                PlayerStats stats = InProgress(owner);
                 switch (power.Power)
                 {
                     case WeakPower: stats.Weak += stacks; break;
@@ -154,16 +162,41 @@ public sealed class RunStatsTracker
 
     private static Player? OwnerOf(Creature? creature) => creature?.Player ?? creature?.PetOwner;
 
-    private PlayerStats EnsurePlayer(Player player)
+    private void EnsurePlayer(Player player)
     {
-        if (!_players.TryGetValue(player.NetId, out PlayerStats? stats))
-        {
-            stats = new PlayerStats { NetId = player.NetId };
-            _players[player.NetId] = stats;
-        }
+        PlayerStats stats = Committed(player.NetId);
         stats.Name = ResolveName(player);
         stats.Character = player.Character.Id.Entry;
+    }
+
+    private PlayerStats Committed(ulong netId) => GetOrAdd(_committed, netId);
+
+    private PlayerStats InProgress(Player player)
+    {
+        EnsurePlayer(player);
+        return GetOrAdd(_inProgress, player.NetId);
+    }
+
+    private static PlayerStats GetOrAdd(Dictionary<ulong, PlayerStats> map, ulong netId)
+    {
+        if (!map.TryGetValue(netId, out PlayerStats? stats))
+        {
+            stats = new PlayerStats { NetId = netId };
+            map[netId] = stats;
+        }
         return stats;
+    }
+
+    private List<PlayerStats> DisplayTotals()
+    {
+        var totals = new List<PlayerStats>();
+        foreach (PlayerStats committed in _committed.Values)
+        {
+            PlayerStats total = committed.Clone();
+            if (_inProgress.TryGetValue(committed.NetId, out PlayerStats? delta)) total.Add(delta);
+            totals.Add(total);
+        }
+        return totals.OrderByDescending(p => p.Damage).ToList();
     }
 
     /// <summary>
@@ -201,7 +234,7 @@ public sealed class RunStatsTracker
     private void Flush(bool force)
     {
         if (!force && (!_dirty || _sinceLastWrite.Elapsed < WriteThrottle)) return;
-        if (_runKey.Length == 0 && _players.Count == 0) return;
+        if (_runKey.Length == 0 && _committed.Count == 0) return;
         try
         {
             StatsFile.Write(new RunStatsSnapshot
@@ -210,7 +243,8 @@ public sealed class RunStatsTracker
                 Seed = _seed,
                 InCombat = _inCombat,
                 CombatsFinished = _combatsFinished,
-                Players = _players.Values.OrderByDescending(p => p.Damage).ToList(),
+                Players = DisplayTotals(),
+                Committed = _committed.Values.ToList(),
             });
             _dirty = false;
             _sinceLastWrite.Restart();
