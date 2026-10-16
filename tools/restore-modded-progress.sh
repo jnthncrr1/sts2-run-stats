@@ -10,7 +10,7 @@ if pgrep -f "SlayTheSpire2.app/Contents/MacOS" >/dev/null; then
   echo "Slay the Spire 2 is running. Quit it first, then rerun this script."; exit 1
 fi
 
-BASE="$HOME/Library/Application Support/SlayTheSpire2/steam"
+BASE="${STS2_SAVE_BASE:-$HOME/Library/Application Support/SlayTheSpire2/steam}"
 fixed=0
 for user_dir in "$BASE"/*/; do
   for unmodded in "$user_dir"profile*/saves/progress.save; do
