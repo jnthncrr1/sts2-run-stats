@@ -217,8 +217,6 @@ public sealed class RunStatsTracker
                 {
                     case WeakPower: stats.Weak += stacks; break;
                     case VulnerablePower: stats.Vulnerable += stacks; break;
-                    case PoisonPower: stats.Poison += stacks; break;
-                    case DoomPower: stats.Doom += stacks; break;
                 }
                 return;
             }

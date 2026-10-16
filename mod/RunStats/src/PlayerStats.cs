@@ -12,8 +12,6 @@ public sealed class PlayerStats
     [JsonPropertyName("block")] public long Block { get; set; }
     [JsonPropertyName("weak")] public long Weak { get; set; }
     [JsonPropertyName("vulnerable")] public long Vulnerable { get; set; }
-    [JsonPropertyName("poison")] public long Poison { get; set; }
-    [JsonPropertyName("doom")] public long Doom { get; set; }
 
     /// <summary>Enemy attack damage that did not happen because this player lowered the attacker's Strength.</summary>
     [JsonPropertyName("damagePrevented")] public long DamagePrevented { get; set; }
@@ -26,8 +24,7 @@ public sealed class PlayerStats
         Block += other.Block;
         Weak += other.Weak;
         Vulnerable += other.Vulnerable;
-        Poison += other.Poison;
-        Doom += other.Doom;
+
         DamagePrevented += other.DamagePrevented;
     }
 }
