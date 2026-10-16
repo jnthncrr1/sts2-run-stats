@@ -8,12 +8,14 @@
   :root { --bg:#141216; --panel:#1f1b22; --text:#efe6d8; --muted:#9a8f88; --line:#352e33; --accent:#e0a84a; }
   body { margin:0; background:var(--bg); color:var(--text); font:16px/1.4 system-ui, sans-serif; padding:16px; }
   header { display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+  main { display:inline-block; }
   h1 { font-size:20px; margin:0; }
   .meta { color:var(--muted); font-size:14px; }
   .dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#666; margin-right:6px; vertical-align:middle; }
   .dot.live { background:#5ec26a; }
-  table { width:100%; border-collapse:collapse; background:var(--panel); border-radius:8px; overflow:hidden; }
-  th, td { padding:10px 14px; text-align:right; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  table { border-collapse:collapse; background:var(--panel); border-radius:8px; overflow:hidden; table-layout:fixed; }
+  th, td { padding:10px 14px; text-align:right; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  th:first-child, td:first-child { width:180px; }
   th { color:var(--muted); font-weight:600; font-size:13px; text-transform:uppercase; letter-spacing:.04em; }
   th:first-child, td:first-child { text-align:left; }
   tr:last-child td { border-bottom:none; }
@@ -21,10 +23,11 @@
   td.name small { display:block; color:var(--muted); font-weight:400; font-size:12px; }
   td.top { color:var(--accent); }
   .empty { color:var(--muted); padding:24px; text-align:center; }
-  @media (max-width:640px){ th, td { padding:8px 6px; font-size:14px; } }
+  @media (max-width:640px){ th, td { padding:8px 6px; font-size:14px; width:72px; } th:first-child, td:first-child { width:120px; } }
 </style>
 </head>
 <body>
+<main>
 <header>
   <h1>Run Stats</h1>
   <span class="meta"><span id="dot" class="dot"></span><span id="status">connecting…</span></span>
@@ -36,6 +39,7 @@
   </tr></thead>
   <tbody id="rows"><tr><td colspan="6" class="empty">Waiting for a run…</td></tr></tbody>
 </table>
+</main>
 <script>
 const cols = ["damage","block","damagePrevented","weak","vulnerable"];
 const fmt = new Intl.NumberFormat();
