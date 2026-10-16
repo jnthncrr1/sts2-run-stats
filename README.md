@@ -7,7 +7,7 @@ player (not just the host), and only one person in the lobby needs it installed.
 | Column | What it counts |
 |---|---|
 | Damage | Unblocked damage dealt to enemies by the player or their pet (Osty), including relics, potions, Thorns and similar. Self-damage (Offering) and damage to allies never count. Poison, Demise, Strangle and Haunt deal their damage with no dealer recorded; see below for how they are credited. |
-| Block | Block gained, plus Osty HP from summons and heals. Credited to the player whose card did it (so shielding or summoning for an ally counts for the giver); block or summons from a power or relic outside a card play go to the receiver or summoner. |
+| Block | Block gained, plus Osty HP from summons and heals. Credited to the player whose card or potion did it (so shielding or summoning for an ally counts for the giver); block or summons from a power or relic outside a card or potion go to the receiver or summoner. |
 | Prevented | Enemy attack damage that did not happen because the player lowered the attacker's Strength (Piercing Wail, Dark Shackles, Strength-down effects). |
 | Weak / Vulnerable | Stacks applied to enemies. |
 | Other debuffs | Stacks of any other debuff-type power applied to enemies (Poison, Frail, Strength down, ...). |
@@ -112,9 +112,10 @@ discards the in-progress portion and resumes from the last finished combat.
 Every client in a multiplayer run executes the full deterministic combat simulation,
 and the game records each action in `CombatManager.Instance.History` (damage received,
 block gained, power received, each tagged with the responsible creature). The mod
-subscribes to that history's `Changed` event for everything except four read-only Harmony
-hooks: the Doom kill (no history entry), pet healing (same), the damage pipeline (to replay it
-for prevented damage) and temporary Strength expiry. Every hook body is wrapped so a failure inside the mod
+subscribes to that history's `Changed` event for everything except five read-only Harmony
+hooks: the Doom kill (no history entry), pet healing (same), potion use (its entry is logged
+after the effects), the damage pipeline (to replay it for prevented damage) and temporary
+Strength expiry. Every hook body is wrapped so a failure inside the mod
 only logs a warning. Nothing the mod does changes game state, so it cannot affect gameplay or
 cause desyncs. `affects_gameplay` is false in the manifest, which
 also keeps the game from treating it as a mod mismatch between players.

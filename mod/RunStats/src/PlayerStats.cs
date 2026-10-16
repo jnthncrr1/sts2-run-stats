@@ -74,6 +74,12 @@ public sealed class RunStatsSnapshot
     /// </summary>
     [JsonPropertyName("activeCardPlayNetId")] public ulong ActiveCardPlayNetId { get; set; }
 
+    /// <summary>Net ID of the player whose potion is currently resolving; 0 otherwise.</summary>
+    [JsonPropertyName("activePotionNetId")] public ulong ActivePotionNetId { get; set; }
+
+    /// <summary>The player whose card or potion is resolving right now, or 0.</summary>
+    public ulong ActiveSourceNetId => ActiveCardPlayNetId != 0 ? ActiveCardPlayNetId : ActivePotionNetId;
+
     public PlayerStats CommittedFor(ulong netId) => GetOrAdd(Committed, netId);
     public PlayerStats InProgressFor(ulong netId) => GetOrAdd(InProgress, netId);
 
@@ -90,6 +96,7 @@ public sealed class RunStatsSnapshot
         StrengthLedger.Clear();
         LastCardPlayNetId = 0;
         ActiveCardPlayNetId = 0;
+        ActivePotionNetId = 0;
     }
 
     public void RefreshDisplayTotals()

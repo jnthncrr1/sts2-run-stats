@@ -83,7 +83,7 @@ public sealed class RunStatsTracker
         Update(snapshot =>
         {
             ApplyNewEntries(snapshot);
-            ulong netId = snapshot.ActiveCardPlayNetId != 0 ? snapshot.ActiveCardPlayNetId : pet.PetOwner?.NetId ?? 0;
+            ulong netId = snapshot.ActiveSourceNetId != 0 ? snapshot.ActiveSourceNetId : pet.PetOwner?.NetId ?? 0;
             if (netId != 0) InProgressFor(snapshot, netId).Block += healed;
         });
     }
@@ -167,7 +167,7 @@ public sealed class RunStatsTracker
                 // Osty's HP works like block for the party, credited to whoever played the card
                 // (summons for an ally) or to the summoner when a power or relic did it.
                 if (summoned.Amount <= 0) return;
-                ulong netId = snapshot.ActiveCardPlayNetId != 0 ? snapshot.ActiveCardPlayNetId : summoned.Actor.Player?.NetId ?? 0;
+                ulong netId = snapshot.ActiveSourceNetId != 0 ? snapshot.ActiveSourceNetId : summoned.Actor.Player?.NetId ?? 0;
                 if (netId != 0) InProgressFor(snapshot, netId).Block += summoned.Amount;
                 return;
             }
@@ -198,7 +198,7 @@ public sealed class RunStatsTracker
                 // Credit the card's player; without a card reference, the player whose card is
                 // resolving (a triggered power or relic); otherwise whoever received the block.
                 ulong netId = block.CardPlay?.Player.NetId
-                    ?? (snapshot.ActiveCardPlayNetId != 0 ? snapshot.ActiveCardPlayNetId : OwnerOf(block.Receiver)?.NetId ?? 0);
+                    ?? (snapshot.ActiveSourceNetId != 0 ? snapshot.ActiveSourceNetId : OwnerOf(block.Receiver)?.NetId ?? 0);
                 if (netId != 0) InProgressFor(snapshot, netId).Block += block.Amount;
                 return;
             }
