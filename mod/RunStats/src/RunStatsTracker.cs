@@ -32,6 +32,7 @@ public sealed class RunStatsTracker
         CombatManager.Instance.CombatEnded += OnCombatEnded;
         CombatManager.Instance.History.Changed += OnHistoryChanged;
         DoomKillPatch.DoomKilled += OnDoomKilled;
+        PetHealPatch.PetHealed += OnPetHealed;
         GD.Print("[RunStats] attached; run files under " + StatsFile.Directory);
     }
 
@@ -75,6 +76,16 @@ public sealed class RunStatsTracker
     private void OnHistoryChanged()
     {
         Update(ApplyNewEntries);
+    }
+
+    private void OnPetHealed(Creature pet, int healed)
+    {
+        Update(snapshot =>
+        {
+            ApplyNewEntries(snapshot);
+            ulong netId = snapshot.ActiveCardPlayNetId != 0 ? snapshot.ActiveCardPlayNetId : pet.PetOwner?.NetId ?? 0;
+            if (netId != 0) InProgressFor(snapshot, netId).Block += healed;
+        });
     }
 
     private void OnDoomKilled(Creature victim, int hpAtDeath)
