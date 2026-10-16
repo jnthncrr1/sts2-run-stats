@@ -16,6 +16,9 @@ Dealer-less damage is credited like this:
 - **Strangle** is one instance per applier and fires when that applier plays a card, so it is
   credited exactly.
 - **Haunt** sits on the player and fires on their own Soul play, so it is credited exactly.
+- **Doom** kills outright, so there is no damage event at all. A read-only Harmony prefix on
+  the Doom kill records the victim's HP just before it dies, and that HP is counted as damage
+  split between the Doom owners in proportion to their stacks.
 - **Poison and Demise** stacks from several players merge into one counter on the enemy. The
   mod keeps a per-fight ledger of how many stacks each player owns. Each tick pays every owner
   their stacks; Poison's one-per-turn decrement is taken from whoever owns the most stacks
@@ -100,9 +103,10 @@ discards the in-progress portion and resumes from the last finished combat.
 
 Every client in a multiplayer run executes the full deterministic combat simulation,
 and the game records each action in `CombatManager.Instance.History` (damage received,
-block gained, power received, each tagged with the responsible creature). The mod only
-subscribes to that history's `Changed` event, so it needs no Harmony patches and cannot
-affect gameplay or cause desyncs. `affects_gameplay` is false in the manifest, which
+block gained, power received, each tagged with the responsible creature). The mod
+subscribes to that history's `Changed` event for everything except Doom kills, which have
+no history entry and are observed with a single read-only Harmony prefix. Nothing the mod
+does changes game state, so it cannot affect gameplay or cause desyncs. `affects_gameplay` is false in the manifest, which
 also keeps the game from treating it as a mod mismatch between players.
 
 ## Regenerating the decompiled reference

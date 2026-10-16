@@ -31,6 +31,7 @@ public sealed class RunStatsTracker
         CombatManager.Instance.CombatSetUp += OnCombatSetUp;
         CombatManager.Instance.CombatEnded += OnCombatEnded;
         CombatManager.Instance.History.Changed += OnHistoryChanged;
+        DoomKillPatch.DoomKilled += OnDoomKilled;
         GD.Print("[RunStats] attached; run files under " + StatsFile.Directory);
     }
 
@@ -73,6 +74,16 @@ public sealed class RunStatsTracker
     private void OnHistoryChanged()
     {
         Update(ApplyNewEntries);
+    }
+
+    private void OnDoomKilled(Creature victim, int hpAtDeath)
+    {
+        if (IsFriendly(victim)) return;
+        Update(snapshot =>
+        {
+            ApplyNewEntries(snapshot);
+            SourcelessDamage.CreditDoomKill(snapshot, victim, hpAtDeath, (netId, amount) => InProgressFor(snapshot, netId).Damage += amount);
+        });
     }
 
     private void Update(Action<RunStatsSnapshot> change)

@@ -20,7 +20,7 @@ public static class SourcelessDamage
 {
     public static void OnPowerChanged(RunStatsSnapshot snapshot, PowerReceivedEntry entry)
     {
-        if (entry.Power is not (PoisonPower or DemisePower)) return;
+        if (entry.Power is not (PoisonPower or DemisePower or DoomPower)) return;
         Dictionary<string, long> owned = snapshot.StackLedger.TryGetValue(LedgerKey(entry.Power), out var o) ? o : new();
 
         Player? applier = entry.Applier?.Player ?? entry.Applier?.PetOwner;
@@ -72,6 +72,32 @@ public static class SourcelessDamage
         // Haunt: the buff is on the player, triggered by their own Soul play.
         Player? haunter = PickHaunter(receiver, dealt, snapshot.LastCardPlayNetId);
         if (haunter != null) credit(haunter.NetId, dealt);
+    }
+
+    /// <summary>
+    /// A Doom kill counts as damage equal to the victim's HP at death, split between the Doom
+    /// owners in proportion to their stacks (largest remainder rounding).
+    /// </summary>
+    public static void CreditDoomKill(RunStatsSnapshot snapshot, Creature victim, int hpAtDeath, Action<ulong, long> credit)
+    {
+        DoomPower? doom = victim.GetPower<DoomPower>();
+        if (doom == null || hpAtDeath <= 0) return;
+        if (!snapshot.StackLedger.TryGetValue(LedgerKey(doom), out var owned) || owned.Count == 0) return;
+        long totalStacks = owned.Values.Sum();
+        if (totalStacks <= 0) return;
+
+        var shares = owned
+            .Select(kv => (netId: ulong.Parse(kv.Key), exact: (double)hpAtDeath * kv.Value / totalStacks))
+            .Select(x => (x.netId, whole: (long)Math.Floor(x.exact), frac: x.exact - Math.Floor(x.exact)))
+            .ToList();
+        long leftover = hpAtDeath - shares.Sum(x => x.whole);
+        foreach (var share in shares.OrderByDescending(x => x.frac).ThenBy(x => x.netId))
+        {
+            long amount = share.whole + (leftover > 0 ? 1 : 0);
+            if (leftover > 0) leftover--;
+            if (amount > 0) credit(share.netId, amount);
+        }
+        snapshot.StackLedger.Remove(LedgerKey(doom));
     }
 
     /// <summary>Pays each owner their stacks, largest first, up to what was actually dealt.</summary>

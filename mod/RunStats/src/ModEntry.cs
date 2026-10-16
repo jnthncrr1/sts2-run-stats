@@ -1,5 +1,6 @@
 using System.Reflection;
 using Godot;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
 
 namespace RunStats;
@@ -14,6 +15,7 @@ public static class ModEntry
 
     public static void Initialize()
     {
+        new Harmony("jcorreia.RunStats").PatchAll(typeof(ModEntry).Assembly);
         Tracker = new RunStatsTracker();
         Tracker.Attach();
         Server = new StatsHttpServer(ViewerPort, LoadPage(), ReadStats, GD.Print);
