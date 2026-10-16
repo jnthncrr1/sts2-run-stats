@@ -65,6 +65,12 @@ looks fresh. Fix it with the game closed:
 Then relaunch with mods. The script copies your progression into the modded profile with
 the timestamp the cloud expects, so the sync keeps it; the next save uploads it.
 
+It will not destroy progress on either side: the unmodded file is never modified, the
+modded file is only replaced when the unmodded one has strictly more progress (floors
+climbed, then playtime), and whatever it replaces is kept next to it as
+`progress.save.before-restore-<timestamp>`. If the modded profile is the one with more
+progress, it says so and stops; `--force` (`-Force` on Windows) overrides that.
+
 ## Viewing
 
 Open `http://localhost:8765` in any browser while the game is running. The JSON
