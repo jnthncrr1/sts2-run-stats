@@ -7,8 +7,8 @@ player (not just the host), and only one person in the lobby needs it installed.
 | Column | What it counts |
 |---|---|
 | Damage | Unblocked damage dealt to enemies by the player or their pet (Osty), including relics, potions, Thorns and similar. Self-damage (Offering) and damage to allies never count. Poison, Demise, Strangle and Haunt deal their damage with no dealer recorded; see below for how they are credited. |
-| Block | Block gained, plus Osty HP from summons and heals. Credited to the player whose card or potion did it (so shielding or summoning for an ally counts for the giver); block or summons from a power or relic outside a card or potion go to the receiver or summoner. |
-| Prevented | Enemy attack damage that did not happen because the player lowered the attacker's Strength (Piercing Wail, Dark Shackles, Strength-down effects). |
+| Block | Block gained, plus Osty HP from summons and heals. Credited to the player whose card or potion did it (so shielding or summoning for an ally counts for the giver); block from Plating is credited to whoever applied the Plating (so a Plating potion thrown on an ally counts for the thrower); other block or summons from a power or relic outside a card or potion go to the receiver or summoner. |
+| Prevented | Enemy attack damage that did not happen because the player lowered the attacker's Strength (Piercing Wail, Dark Shackles, permanent Strength-down effects). Giving an enemy Strength counts negative, even if someone later cancels it. |
 | Weak / Vulnerable | Stacks applied to enemies. |
 | Other debuffs | Stacks of any other debuff-type power applied to enemies (Poison, Frail, Strength down, ...). |
 
@@ -26,8 +26,9 @@ Dealer-less damage is credited like this:
   (ties broken by lowest net ID). Stacks applied by monsters are not owned by anyone and
   their share of a tick is uncredited.
 
-Prevented damage: every Strength reduction a player puts on an enemy goes into an ordered
-ledger for that enemy, and temporary ones leave it when they expire. For each enemy attack the
+Prevented damage: every Strength change a player puts on an enemy goes into an ordered ledger
+for that enemy (reductions positive, buffs negative), and temporary ones leave it when they
+expire. For each enemy attack the
 mod re-runs the game's damage pipeline with the reductions restored one at a time, oldest
 first, and credits each player with the difference their reduction made. Once an attack is
 already at zero, later reductions earn nothing. Weak and Vulnerable are not tracked this way

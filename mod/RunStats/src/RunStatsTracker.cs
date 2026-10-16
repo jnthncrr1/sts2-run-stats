@@ -195,10 +195,13 @@ public sealed class RunStatsTracker
             case BlockGainedEntry block:
             {
                 if (block.Amount <= 0) return;
-                // Credit the card's player; without a card reference, the player whose card is
-                // resolving (a triggered power or relic); otherwise whoever received the block.
+                // Credit the card's player; without a card reference, the player whose card or
+                // potion is resolving (a triggered power or relic); then Plating's applier when the
+                // amount matches (a Plating potion thrown on an ally); otherwise the receiver.
                 ulong netId = block.CardPlay?.Player.NetId
-                    ?? (snapshot.ActiveSourceNetId != 0 ? snapshot.ActiveSourceNetId : OwnerOf(block.Receiver)?.NetId ?? 0);
+                    ?? (snapshot.ActiveSourceNetId != 0 ? snapshot.ActiveSourceNetId
+                        : PlatingApplier(block.Receiver, block.Amount)?.NetId
+                        ?? OwnerOf(block.Receiver)?.NetId ?? 0);
                 if (netId != 0) InProgressFor(snapshot, netId).Block += block.Amount;
                 return;
             }
@@ -225,6 +228,13 @@ public sealed class RunStatsTracker
     }
 
     private static bool IsFriendly(Creature creature) => creature.IsPlayer || creature.IsPet;
+
+    private static Player? PlatingApplier(Creature receiver, int amount)
+    {
+        PlatingPower? plating = receiver.GetPower<PlatingPower>();
+        if (plating == null || plating.Amount != amount) return null;
+        return OwnerOf(plating.Applier);
+    }
 
     private static Player? OwnerOf(Creature? creature) => creature?.Player ?? creature?.PetOwner;
 

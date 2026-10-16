@@ -13,9 +13,10 @@ namespace RunStats;
 
 /// <summary>
 /// Credits enemy attack damage that never happened because players lowered the attacker's
-/// Strength (Piercing Wail, Dark Shackles, Strength-down effects, ...). All of those end up as
-/// negative StrengthPower on the enemy, so the run file keeps an ordered ledger of who lowered
-/// each enemy's Strength by how much. For every enemy attack the damage pipeline is re-run with
+/// Strength (Piercing Wail, Dark Shackles, permanent Strength-down effects, ...), and debits
+/// damage players caused by giving enemies Strength. All of those end up as StrengthPower changes
+/// on the enemy, so the run file keeps an ordered ledger of who changed each enemy's Strength by
+/// how much. For every enemy attack the damage pipeline is re-run with
 /// the reductions restored one at a time, oldest reduction first, and each player is credited
 /// with the difference their reduction made. Once the attack is already at zero, later
 /// reductions earn nothing, which is the "first to reduce gets the credit" rule.
@@ -28,9 +29,14 @@ public static class StrengthMitigation
     /// </summary>
     private static readonly Dictionary<(uint, uint), List<(ulong netId, long prevented)>> _pending = new();
 
+    /// <summary>
+    /// Any player-caused Strength change on an enemy joins the ledger: reductions as positive
+    /// amounts, buffs (cards that give enemies Strength as a cost) as negative ones, which end up
+    /// as negative prevented damage even if a later reduction cancels them out.
+    /// </summary>
     public static void OnPowerChanged(RunStatsSnapshot snapshot, PowerReceivedEntry entry)
     {
-        if (entry.Power is not StrengthPower || entry.Amount >= 0) return;
+        if (entry.Power is not StrengthPower || entry.Amount == 0) return;
         var applier = entry.Applier?.Player ?? entry.Applier?.PetOwner;
         if (applier == null) return;
         string key = EnemyKey(entry.Power.Owner);
@@ -42,17 +48,22 @@ public static class StrengthMitigation
         reductions.Add(new StrengthReduction { NetId = applier.NetId, Amount = (long)-entry.Amount });
     }
 
-    /// <summary>A temporary Strength-down expired: its owner's most recent matching reduction is gone.</summary>
-    public static void OnTemporaryReductionReverted(RunStatsSnapshot snapshot, Creature enemy, ulong netId, long amount)
+    /// <summary>
+    /// A temporary Strength change expired. Removes that much from the owner's most recent
+    /// entries of the same sign (positive for an expired reduction, negative for an expired buff).
+    /// </summary>
+    public static void OnTemporaryChangeReverted(RunStatsSnapshot snapshot, Creature enemy, ulong netId, long signedAmount)
     {
-        if (!snapshot.StrengthLedger.TryGetValue(EnemyKey(enemy), out var reductions)) return;
-        for (int i = reductions.Count - 1; i >= 0 && amount > 0; i--)
+        if (signedAmount == 0 || !snapshot.StrengthLedger.TryGetValue(EnemyKey(enemy), out var reductions)) return;
+        int sign = Math.Sign(signedAmount);
+        long remaining = Math.Abs(signedAmount);
+        for (int i = reductions.Count - 1; i >= 0 && remaining > 0; i--)
         {
-            if (reductions[i].NetId != netId) continue;
-            long take = Math.Min(amount, reductions[i].Amount);
-            reductions[i].Amount -= take;
-            amount -= take;
-            if (reductions[i].Amount <= 0) reductions.RemoveAt(i);
+            if (reductions[i].NetId != netId || Math.Sign(reductions[i].Amount) != sign) continue;
+            long take = Math.Min(remaining, Math.Abs(reductions[i].Amount));
+            reductions[i].Amount -= sign * take;
+            remaining -= take;
+            if (reductions[i].Amount == 0) reductions.RemoveAt(i);
         }
         if (reductions.Count == 0) snapshot.StrengthLedger.Remove(EnemyKey(enemy));
     }
@@ -89,7 +100,7 @@ public static class StrengthMitigation
             restored -= reduction.Amount;
             decimal next = Pipeline(runState, combatState, target, dealer, baseDamage, props, cardSource, cardPlay, restored);
             long prevented = (long)previous - (long)next;
-            if (prevented > 0) shares.Add((reduction.NetId, prevented));
+            if (prevented != 0) shares.Add((reduction.NetId, prevented));
             previous = next;
         }
         if (shares.Count > 0) _pending[(dealer.CombatId.Value, target.CombatId.Value)] = shares;
@@ -148,12 +159,13 @@ public static class TemporaryStrengthRevertPatch
     {
         try
         {
-            if (__instance.Type != MegaCrit.Sts2.Core.Entities.Powers.PowerType.Debuff) return;
-            if (!participants.Contains(__instance.Owner)) return;
+            if (!participants.Contains(__instance.Owner) || !__instance.Owner.IsMonster) return;
             var applier = __instance.Applier?.Player ?? __instance.Applier?.PetOwner;
             if (applier == null) return;
+            bool isReduction = __instance.Type == MegaCrit.Sts2.Core.Entities.Powers.PowerType.Debuff;
+            long signedAmount = isReduction ? __instance.Amount : -__instance.Amount;
             ModEntry.Tracker?.Update(snapshot =>
-                StrengthMitigation.OnTemporaryReductionReverted(snapshot, __instance.Owner, applier.NetId, __instance.Amount));
+                StrengthMitigation.OnTemporaryChangeReverted(snapshot, __instance.Owner, applier.NetId, signedAmount));
         }
         catch (Exception e)
         {
