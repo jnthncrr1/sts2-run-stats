@@ -1,128 +1,141 @@
 using System.Net;
-using System.Reflection;
+using System.Net.Sockets;
 using System.Text;
-using Godot;
 
 namespace RunStats;
 
 /// <summary>
-/// Serves the viewer page and the live stats JSON on localhost so a browser can show the
-/// table without any software outside the game. Only binds loopback, so nothing is exposed
-/// to the network.
+/// Minimal HTTP/1.1 server on both loopback addresses so any browser can show the table
+/// without software outside the game. Raw sockets rather than HttpListener: the managed
+/// HttpListener matches requests by Host header against the prefix list per address, so a
+/// browser sending "Host: localhost" over 127.0.0.1 (Firefox) got a 404, and it rejects
+/// bracketed IPv6 prefixes outright. Nothing here is reachable from other machines.
 /// </summary>
 public sealed class StatsHttpServer
 {
-    private readonly HttpListener _listener = new();
-    private readonly byte[] _page;
     private readonly int _port;
+    private readonly byte[] _page;
+    private readonly Func<byte[]?> _readStats;
+    private readonly Action<string> _log;
+    private readonly List<TcpListener> _listeners = new();
 
-    public StatsHttpServer(int port)
+    public StatsHttpServer(int port, byte[] page, Func<byte[]?> readStats, Action<string> log)
     {
         _port = port;
-        using Stream s = Assembly.GetExecutingAssembly().GetManifestResourceStream("RunStats.index.html")
-                         ?? throw new InvalidOperationException("index.html resource missing");
-        using var ms = new MemoryStream();
-        s.CopyTo(ms);
-        _page = ms.ToArray();
+        _page = page;
+        _readStats = readStats;
+        _log = log;
     }
 
     public void Start()
     {
-        _listener.Prefixes.Add($"http://127.0.0.1:{_port}/");
-        _listener.Prefixes.Add($"http://localhost:{_port}/");
-        try
+        foreach (IPAddress address in new[] { IPAddress.Loopback, IPAddress.IPv6Loopback })
         {
-            _listener.Start();
-        }
-        catch (Exception e)
-        {
-            GD.PushWarning($"[RunStats] could not start viewer server on port {_port}: {e.Message}");
-            return;
-        }
-        _ = Task.Run(AcceptLoop);
-        GD.Print($"[RunStats] viewer at http://localhost:{_port}/");
-    }
-
-    private async Task AcceptLoop()
-    {
-        while (_listener.IsListening)
-        {
-            HttpListenerContext ctx;
+            var listener = new TcpListener(address, _port);
             try
             {
-                ctx = await _listener.GetContextAsync();
+                listener.Start();
+                _listeners.Add(listener);
+                _ = Task.Run(() => AcceptLoop(listener));
             }
-            catch (Exception) when (!_listener.IsListening)
+            catch (SocketException e)
             {
-                return;
+                _log($"[RunStats] could not listen on {address}:{_port}: {e.Message}");
+            }
+        }
+        if (_listeners.Count > 0)
+        {
+            _log($"[RunStats] viewer at http://localhost:{_port}/");
+        }
+    }
+
+    private async Task AcceptLoop(TcpListener listener)
+    {
+        while (true)
+        {
+            TcpClient client;
+            try
+            {
+                client = await listener.AcceptTcpClientAsync();
             }
             catch (Exception e)
             {
-                GD.PushWarning("[RunStats] accept failed: " + e.Message);
-                continue;
+                _log("[RunStats] accept failed: " + e.Message);
+                return;
             }
-            _ = Task.Run(() => Handle(ctx));
+            _ = Task.Run(() => Handle(client));
         }
     }
 
-    private void Handle(HttpListenerContext ctx)
+    private async Task Handle(TcpClient client)
     {
-        try
+        using (client)
         {
-            string path = RequestPath(ctx.Request.RawUrl);
-            switch (path)
+            try
             {
-                case "/stats.json":
-                    if (!File.Exists(StatsFile.CurrentPath))
+                client.ReceiveTimeout = 5000;
+                NetworkStream stream = client.GetStream();
+                string? requestLine = await ReadRequestAsync(stream);
+                if (requestLine == null) return;
+                string[] parts = requestLine.Split(' ');
+                string path = parts.Length >= 2 ? parts[1] : "/";
+                int query = path.IndexOf('?');
+                if (query >= 0) path = path[..query];
+
+                switch (path)
+                {
+                    case "/":
+                    case "/index.html":
+                        await WriteResponse(stream, 200, "text/html; charset=utf-8", _page);
+                        break;
+                    case "/stats.json":
                     {
-                        Respond(ctx, 404, "text/plain", Encoding.UTF8.GetBytes("no stats yet"));
-                        return;
+                        byte[]? stats = _readStats();
+                        if (stats == null)
+                            await WriteResponse(stream, 404, "text/plain", Encoding.UTF8.GetBytes("no stats yet"));
+                        else
+                            await WriteResponse(stream, 200, "application/json", stats);
+                        break;
                     }
-                    Respond(ctx, 200, "application/json", File.ReadAllBytes(StatsFile.CurrentPath));
-                    return;
-                case "/":
-                case "/index.html":
-                    Respond(ctx, 200, "text/html; charset=utf-8", _page);
-                    return;
-                default:
-                    Respond(ctx, 404, "text/plain", Encoding.UTF8.GetBytes("not found"));
-                    return;
+                    default:
+                        await WriteResponse(stream, 404, "text/plain", Encoding.UTF8.GetBytes("not found"));
+                        break;
+                }
+            }
+            catch (Exception e)
+            {
+                _log("[RunStats] request failed: " + e.Message);
             }
         }
-        catch (Exception e)
-        {
-            GD.PushWarning("[RunStats] request failed: " + e.Message);
-            try { ctx.Response.Abort(); } catch { }
-        }
     }
 
-    /// <summary>
-    /// HttpListener builds Request.Url from the matched prefix, and when the Host header
-    /// names the prefix differently from the address the socket arrived on (Firefox sends
-    /// Host: localhost over 127.0.0.1) the resulting path is garbage. RawUrl is what the
-    /// browser actually asked for.
-    /// </summary>
-    private static string RequestPath(string? rawUrl)
+    /// <summary>Reads through the end of the headers and returns the request line.</summary>
+    private static async Task<string?> ReadRequestAsync(NetworkStream stream)
     {
-        string path = rawUrl ?? "/";
-        int schemeEnd = path.IndexOf("://", StringComparison.Ordinal);
-        if (schemeEnd >= 0)
+        var buffer = new byte[8192];
+        int total = 0;
+        while (total < buffer.Length)
         {
-            int firstSlash = path.IndexOf('/', schemeEnd + 3);
-            path = firstSlash >= 0 ? path[firstSlash..] : "/";
+            int n = await stream.ReadAsync(buffer.AsMemory(total, buffer.Length - total));
+            if (n <= 0) break;
+            total += n;
+            string text = Encoding.ASCII.GetString(buffer, 0, total);
+            if (text.Contains("\r\n\r\n", StringComparison.Ordinal) || text.Contains("\n\n", StringComparison.Ordinal))
+            {
+                int end = text.IndexOf('\n');
+                return (end >= 0 ? text[..end] : text).TrimEnd('\r');
+            }
         }
-        int query = path.IndexOf('?');
-        if (query >= 0) path = path[..query];
-        return path.Length == 0 ? "/" : path;
+        return null;
     }
 
-    private static void Respond(HttpListenerContext ctx, int status, string contentType, byte[] body)
+    private static async Task WriteResponse(NetworkStream stream, int status, string contentType, byte[] body)
     {
-        ctx.Response.StatusCode = status;
-        ctx.Response.ContentType = contentType;
-        ctx.Response.ContentLength64 = body.Length;
-        ctx.Response.Headers["Cache-Control"] = "no-store";
-        ctx.Response.OutputStream.Write(body, 0, body.Length);
-        ctx.Response.Close();
+        string reason = status == 200 ? "OK" : "Not Found";
+        string head = $"HTTP/1.1 {status} {reason}\r\nContent-Type: {contentType}\r\nContent-Length: {body.Length}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+        byte[] headBytes = Encoding.ASCII.GetBytes(head);
+        await stream.WriteAsync(headBytes);
+        await stream.WriteAsync(body);
+        await stream.FlushAsync();
     }
 }

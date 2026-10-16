@@ -5,3 +5,5 @@ mod/RunStats/bin/
 mod/RunStats/obj/
 mod/RunStats/local.props
 notes/dotnet-install.sh
+notes/listener-test/bin/
+notes/listener-test/obj/
