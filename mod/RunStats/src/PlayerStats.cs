@@ -67,6 +67,13 @@ public sealed class RunStatsSnapshot
     /// <summary>Net ID of the player whose card play most recently started; 0 if none.</summary>
     [JsonPropertyName("lastCardPlayNetId")] public ulong LastCardPlayNetId { get; set; }
 
+    /// <summary>
+    /// Net ID of the player whose card play is currently resolving; 0 between plays. Block and
+    /// summons that arrive without a card reference during a play are credited to this player,
+    /// which covers cards that shield or summon for an ally.
+    /// </summary>
+    [JsonPropertyName("activeCardPlayNetId")] public ulong ActiveCardPlayNetId { get; set; }
+
     public PlayerStats CommittedFor(ulong netId) => GetOrAdd(Committed, netId);
     public PlayerStats InProgressFor(ulong netId) => GetOrAdd(InProgress, netId);
 
@@ -82,6 +89,7 @@ public sealed class RunStatsSnapshot
         StackLedger.Clear();
         StrengthLedger.Clear();
         LastCardPlayNetId = 0;
+        ActiveCardPlayNetId = 0;
     }
 
     public void RefreshDisplayTotals()

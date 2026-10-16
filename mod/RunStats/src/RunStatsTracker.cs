@@ -144,9 +144,22 @@ public sealed class RunStatsTracker
     {
         switch (entry)
         {
-            case CardPlayStartedEntry cardPlay:
-                snapshot.LastCardPlayNetId = cardPlay.CardPlay.Player.NetId;
+            case CardPlayStartedEntry started:
+                snapshot.LastCardPlayNetId = started.CardPlay.Player.NetId;
+                snapshot.ActiveCardPlayNetId = started.CardPlay.Player.NetId;
                 return;
+            case CardPlayFinishedEntry:
+                snapshot.ActiveCardPlayNetId = 0;
+                return;
+            case SummonedEntry summoned:
+            {
+                // Osty's HP works like block for the party, credited to whoever played the card
+                // (summons for an ally) or to the summoner when a power or relic did it.
+                if (summoned.Amount <= 0) return;
+                ulong netId = snapshot.ActiveCardPlayNetId != 0 ? snapshot.ActiveCardPlayNetId : summoned.Actor.Player?.NetId ?? 0;
+                if (netId != 0) InProgressFor(snapshot, netId).Block += summoned.Amount;
+                return;
+            }
             case DamageReceivedEntry damage:
             {
                 if (IsFriendly(damage.Receiver))
@@ -170,10 +183,12 @@ public sealed class RunStatsTracker
             }
             case BlockGainedEntry block:
             {
-                // Credit whoever played the card; fall back to the creature that received the block.
-                Player? owner = block.CardPlay?.Player ?? OwnerOf(block.Receiver);
-                if (owner == null || block.Amount <= 0) return;
-                InProgress(snapshot, owner).Block += block.Amount;
+                if (block.Amount <= 0) return;
+                // Credit the card's player; without a card reference, the player whose card is
+                // resolving (a triggered power or relic); otherwise whoever received the block.
+                ulong netId = block.CardPlay?.Player.NetId
+                    ?? (snapshot.ActiveCardPlayNetId != 0 ? snapshot.ActiveCardPlayNetId : OwnerOf(block.Receiver)?.NetId ?? 0);
+                if (netId != 0) InProgressFor(snapshot, netId).Block += block.Amount;
                 return;
             }
             case PowerReceivedEntry power:
