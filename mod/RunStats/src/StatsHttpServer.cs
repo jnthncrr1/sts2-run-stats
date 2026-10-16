@@ -69,7 +69,7 @@ public sealed class StatsHttpServer
     {
         try
         {
-            string path = ctx.Request.Url?.AbsolutePath ?? "/";
+            string path = RequestPath(ctx.Request.RawUrl);
             switch (path)
             {
                 case "/stats.json":
@@ -94,6 +94,26 @@ public sealed class StatsHttpServer
             GD.PushWarning("[RunStats] request failed: " + e.Message);
             try { ctx.Response.Abort(); } catch { }
         }
+    }
+
+    /// <summary>
+    /// HttpListener builds Request.Url from the matched prefix, and when the Host header
+    /// names the prefix differently from the address the socket arrived on (Firefox sends
+    /// Host: localhost over 127.0.0.1) the resulting path is garbage. RawUrl is what the
+    /// browser actually asked for.
+    /// </summary>
+    private static string RequestPath(string? rawUrl)
+    {
+        string path = rawUrl ?? "/";
+        int schemeEnd = path.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd >= 0)
+        {
+            int firstSlash = path.IndexOf('/', schemeEnd + 3);
+            path = firstSlash >= 0 ? path[firstSlash..] : "/";
+        }
+        int query = path.IndexOf('?');
+        if (query >= 0) path = path[..query];
+        return path.Length == 0 ? "/" : path;
     }
 
     private static void Respond(HttpListenerContext ctx, int status, string contentType, byte[] body)
