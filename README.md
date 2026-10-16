@@ -20,6 +20,7 @@ player (not just the host), and only one person in the lobby needs it installed.
 | `mod/RunStats/src/StatsHttpServer.cs` | Serves the viewer on `http://localhost:8765` from inside the game |
 | `mod/RunStats/src/StatsFile.cs` | Writes `RunStats/current.json` and per-run files under the game's user data dir |
 | `mod/RunStats/index.html` | The browser table (polls `/stats.json` once a second) |
+| `tools/` | `restore-modded-progress.sh` / `.ps1`: repair the modded save profile after a Steam Cloud collision |
 | `notes/` | Research notes from the game's XML docs |
 | `decompiled/`, `game-refs/`, `reference-mods/` | Local only, gitignored: decompiled game source, game DLLs, other mods studied |
 
@@ -49,6 +50,20 @@ To install on a friend's machine without building, copy that `RunStats/` folder
 The game refuses to load any mod until you accept the mods warning once: open
 Settings, go to Mods, enable mod loading, then restart the game. The log should
 then contain `RUNNING MODDED` and `[RunStats] viewer at http://localhost:8765/`.
+
+## Modded profile shows no progression
+
+The game keeps a separate `modded/` save profile and copies your real saves into it the
+first time you play modded. If Steam Cloud already holds a modded profile from an earlier
+attempt at mods, its sync overwrites that copy with the old, empty one (the cloud wins
+whenever timestamps differ). Your unmodded saves are untouched; only the modded view
+looks fresh. Fix it with the game closed:
+
+- macOS: `tools/restore-modded-progress.sh`
+- Windows: `powershell -ExecutionPolicy Bypass -File tools\restore-modded-progress.ps1`
+
+Then relaunch with mods. The script copies your progression into the modded profile with
+the timestamp the cloud expects, so the sync keeps it; the next save uploads it.
 
 ## Viewing
 
