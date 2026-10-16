@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run Stats</title>
+<style>
+  :root { --bg:#141216; --panel:#1f1b22; --text:#efe6d8; --muted:#9a8f88; --line:#352e33; --accent:#e0a84a; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.4 system-ui, sans-serif; padding:16px; }
+  header { display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+  h1 { font-size:20px; margin:0; }
+  .meta { color:var(--muted); font-size:14px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#666; margin-right:6px; vertical-align:middle; }
+  .dot.live { background:#5ec26a; }
+  table { width:100%; border-collapse:collapse; background:var(--panel); border-radius:8px; overflow:hidden; }
+  th, td { padding:10px 14px; text-align:right; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  th { color:var(--muted); font-weight:600; font-size:13px; text-transform:uppercase; letter-spacing:.04em; }
+  th:first-child, td:first-child { text-align:left; }
+  tr:last-child td { border-bottom:none; }
+  td.name { font-weight:600; }
+  td.name small { display:block; color:var(--muted); font-weight:400; font-size:12px; }
+  td.top { color:var(--accent); }
+  .empty { color:var(--muted); padding:24px; text-align:center; }
+  @media (max-width:640px){ th, td { padding:8px 6px; font-size:14px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Run Stats</h1>
+  <span class="meta"><span id="dot" class="dot"></span><span id="status">connecting…</span></span>
+  <span class="meta" id="run"></span>
+</header>
+<table>
+  <thead><tr>
+    <th>Player</th><th>Damage</th><th>Block</th><th>Weak</th><th>Vulnerable</th><th>Other debuffs</th>
+  </tr></thead>
+  <tbody id="rows"><tr><td colspan="6" class="empty">Waiting for a run…</td></tr></tbody>
+</table>
+<script>
+const cols = ["damage","block","weak","vulnerable","otherDebuffs"];
+const fmt = new Intl.NumberFormat();
+async function tick() {
+  try {
+    const r = await fetch("/stats.json", {cache:"no-store"});
+    if (!r.ok) throw new Error(r.status);
+    const s = await r.json();
+    render(s);
+  } catch (e) {
+    document.getElementById("status").textContent = "no stats file yet";
+    document.getElementById("dot").className = "dot";
+  }
+}
+function render(s) {
+  const age = (Date.now() - Date.parse(s.updatedAt)) / 1000;
+  const live = age < 15;
+  document.getElementById("dot").className = "dot" + (live ? " live" : "");
+  document.getElementById("status").textContent =
+    (s.inCombat ? "in combat" : "between combats") + " · updated " + (age < 60 ? Math.round(age) + "s ago" : Math.round(age/60) + "m ago");
+  document.getElementById("run").textContent = "seed " + s.seed + " · " + s.combatsFinished + " combats";
+  const max = {};
+  for (const c of cols) max[c] = Math.max(0, ...s.players.map(p => p[c]));
+  const body = document.getElementById("rows");
+  body.innerHTML = "";
+  if (!s.players.length) { body.innerHTML = '<tr><td colspan="6" class="empty">No players yet</td></tr>'; return; }
+  for (const p of s.players) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td class="name">${esc(p.name)}<small>${esc(p.character)}</small></td>` +
+      cols.map(c => `<td class="${p[c] > 0 && p[c] === max[c] && s.players.length > 1 ? "top" : ""}">${fmt.format(p[c])}</td>`).join("");
+    body.appendChild(tr);
+  }
+}
+function esc(t){ return String(t).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch])); }
+tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>

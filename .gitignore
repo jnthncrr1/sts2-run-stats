@@ -1,0 +1,7 @@
+decompiled/
+game-refs/
+reference-mods/
+mod/RunStats/bin/
+mod/RunStats/obj/
+mod/RunStats/local.props
+notes/dotnet-install.sh

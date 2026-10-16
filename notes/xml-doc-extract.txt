@@ -1,0 +1,220 @@
+=== MODDING ===
+M:MegaCrit.Sts2.Core.Nodes.NGame.OnNewModDetected(MegaCrit.Sts2.Core.Modding.Mod) :: Called when we detect that a mod is installed during runtime. Displays a warning telling the user that the mod won't be loaded until after a restart.
+M:MegaCrit.Sts2.Core.Nodes.Screens.ModdingScreen.NModdingScreen.OnNewModDetected(MegaCrit.Sts2.Core.Modding.Mod) :: Called both during initialization and when a new mod is installed during runtime.
+P:MegaCrit.Sts2.Core.Modding.AssemblyInfo.ModMap :: Helper dictionary mapping assemblies to the mods they represent.
+P:MegaCrit.Sts2.Core.Modding.AssemblyInfo.BaseGame :: The base game assembly.
+M:MegaCrit.Sts2.Core.Modding.AssemblyInfo.ClearForTests :: This should only be called by tests. Typically, AssemblyInfo is initialized once at the start of the game and never cleared.
+T:MegaCrit.Sts2.Core.Modding.IModManagerFileIo :: A file IO abstraction layer for use with ModManager. It's a little different than ISaveStore, which is scoped only to a specific directory. This class allows global access to the filesystem.
+T:MegaCrit.Sts2.Core.Modding.Mod :: Information about a loaded mod.
+F:MegaCrit.Sts2.Core.Modding.Mod.modSource :: Where the mod originated from.
+F:MegaCrit.Sts2.Core.Modding.Mod.path :: Path where the mod files are located.
+F:MegaCrit.Sts2.Core.Modding.Mod.state :: Whether the mod was loaded, and if it was not loaded, why. Since there's no way to unload mods while the game is running, this value cannot change after the initial mod initialization occurs. Even if the mod is set to di
+F:MegaCrit.Sts2.Core.Modding.Mod.manifest :: The mod manifest.
+F:MegaCrit.Sts2.Core.Modding.Mod.version :: The version parsed from the mod manifest. Null if the version is not present or is not a valid semantic version.
+F:MegaCrit.Sts2.Core.Modding.Mod.assemblies :: The C# assemblies loaded with the mod, if any. There are usually only zero or one in the list. Mods can register more assemblies, e.g. in the situation where they create dynamic assemblies.
+F:MegaCrit.Sts2.Core.Modding.Mod.errors :: If null, then no errors occurred while loading the mod. If this is set, then there was an error loading the mod that should be displayed. That doesn't necessarily mean the mod failed to load; see for that.
+F:MegaCrit.Sts2.Core.Modding.Mod.workshopId :: The ID of the workshop item, if the mod source is Steam Workshop. This can be used as the value of a PublishedFileId_t, but we use ulong here so that we don't have to guard this with DISABLESTEAMWORKS.
+T:MegaCrit.Sts2.Core.Modding.ModHelper :: Some helper methods for modding.
+M:MegaCrit.Sts2.Core.Modding.ModHelper.AddModelToPool``2 :: Called by mods to add their models to a pool. Throws if the pool has already concatenated models to that pool (i.e. the mod was too late in calling this method). The pool type to add to. The model to add to the pool.
+M:MegaCrit.Sts2.Core.Modding.ModHelper.ConcatModelsFromMods``1(MegaCrit.Sts2.Core.Models.IPoolModel,System.Collections.Generic.IEnumerable{``0}) :: Called by a pool when it is ready to add modded content to its pool of content. The pool that is consuming the content. The current pool of content. The model type of the content that should have been added by mods. A ne
+M:MegaCrit.Sts2.Core.Modding.ModHelper.SubscribeForRunStateHooks(System.String,MegaCrit.Sts2.Core.Modding.RunHookSubscriptionDelegate) :: Called by mods when they wish to provide custom model types to a RunState when IterateHookListeners is called. An ID to identify the subscription. Usually the name of the mod. The delegate provided by the mod, which retu
+M:MegaCrit.Sts2.Core.Modding.ModHelper.SubscribeForCombatStateHooks(System.String,MegaCrit.Sts2.Core.Modding.CombatHookSubscriptionDelegate) :: Called by mods when they wish to provide custom model types to a CombatState when IterateHookListeners is called. An ID to identify the subscription. Usually the name of the mod. The delegate provided by the mod, which r
+M:MegaCrit.Sts2.Core.Modding.ModHelper.IterateAllRunStateSubscribers(MegaCrit.Sts2.Core.Runs.RunState) :: Called by RunState when it is iterating hook listeners, so that custom mod AbstractModel types have hooks called on them. The RunState which is iterating hook listeners. All the model types from all subscribing mods who 
+M:MegaCrit.Sts2.Core.Modding.ModHelper.IterateAllCombatStateSubscribers(MegaCrit.Sts2.Core.Combat.CombatState) :: Called by CombatState when it is iterating hook listeners, so that custom mod AbstractModel types have hooks called on them. The CombatState which is iterating hook listeners. All the model types from all subscribing mod
+T:MegaCrit.Sts2.Core.Modding.ModInitializerAttribute :: Declares a class as the main entry point for the mod. If this is present, then upon loading the mod, we'll call the method named initializerMethod within the class. Otherwise, we'll create a harmony instance for the mod 
+F:MegaCrit.Sts2.Core.Modding.ModLoadState.Loaded :: Mod was successfully loaded.
+F:MegaCrit.Sts2.Core.Modding.ModLoadState.Failed :: We tried to load the mod but it failed to load.
+F:MegaCrit.Sts2.Core.Modding.ModLoadState.Disabled :: We didn't try to load the mod because the user has not enabled mod loading, or this specific mod is marked as disabled in SettingsSave.
+F:MegaCrit.Sts2.Core.Modding.ModLoadState.DisabledDuplicate :: We didn't try to load the mod because the user has this mod loaded both via Steam and local mods directory.
+F:MegaCrit.Sts2.Core.Modding.ModLoadState.AddedAtRuntime :: We didn't try to load the mod because it was added too late.
+E:MegaCrit.Sts2.Core.Modding.ModManager.OnModDetected :: Called when a new mod is detected. Use this to display a warning at runtime if the user adds new mods.
+E:MegaCrit.Sts2.Core.Modding.ModManager.OnMetricsUpload :: Used by mods to hook into the metrics upload process. This is unused by STS2 code. It is only used by mods, and is called when we would ordinarily upload metrics.
+P:MegaCrit.Sts2.Core.Modding.ModManager.TestInitializers :: Used only in test mode.
+M:MegaCrit.Sts2.Core.Modding.ModManager.Initialize(MegaCrit.Sts2.Core.Modding.IModManagerFileIo,MegaCrit.Sts2.Core.Modding.ModSettings,MegaCrit.Sts2.Core.Debug.SemanticVersion) :: Loads all mods from the appropriate directories. This includes the "mods" directory next to the executable, as well as Steam workshop files. This should be called as early as possible in the game's initialization process
+M:MegaCrit.Sts2.Core.Modding.ModManager.ResetForTests :: This should only be called by tests. Typically, ModManager is initialized once at the start of the game and never cleared.
+M:MegaCrit.Sts2.Core.Modding.ModManager.SortModList(System.Collections.Generic.List{MegaCrit.Sts2.Core.Modding.SettingsSaveMod}) :: Sorts mods so that dependencies are loaded before the mods that depend on them (topological sort). Uses Kahn's algorithm: https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm How it works: 1. Build a graph:
+M:MegaCrit.Sts2.Core.Modding.ModManager.RemoveDisabledMods :: Sets mods in _mods to disabled for various reasons. If it's disabled in settings.save, the mod is unconditionally disabled. If the user has subscribed to a mod via Steam workshop and also has it in their local directory:
+M:MegaCrit.Sts2.Core.Modding.ModManager.ReadModsInDirRecursive(System.String,MegaCrit.Sts2.Core.Modding.ModSource,System.Collections.Generic.List{MegaCrit.Sts2.Core.Modding.Mod}) :: Recurses through the directory and reads all the mod PCKs and DLLs in it, putting it in the _mods list. We allow mods in directories to give modders a little slack in how they organize their files. Pass the newMods list 
+M:MegaCrit.Sts2.Core.Modding.ModManager.EvaluateBranchSupport(MegaCrit.Sts2.Core.Platform.PlatformBranch,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,System.String}}) :: Decides whether is supported by a Steam Workshop item, given the supported game-version ranges Steam reports for it. Each range is a (min, max) pair of branch names ordered oldest to newest (see ); an empty string is a d
+M:MegaCrit.Sts2.Core.Modding.ModManager.CheckSteamBranchSupport :: Checks all workshop-based mods on whether they support the current steam branch or not. If a given mod does not support the current steam branch, then it shows an error, but loading continues anyway.
+M:MegaCrit.Sts2.Core.Modding.ModManager.CallModInitializer(System.Type) :: Calls the mod initializer on a type that has the ModInitializerAttribute on it.
+M:MegaCrit.Sts2.Core.Modding.ModManager.GetModdedLocTables(System.String,System.String) :: Returns the filenames of all the loc tables available in loaded mods for the given language and filename. For example, if "eng" and "cards.json" are provided, this returns all mods that supply a cards.json in english.
+M:MegaCrit.Sts2.Core.Modding.ModManager.GetGameplayRelevantModNameList :: Returns a list of the names of all loaded mods that affect gameplay. For multiplayer - used to compare mods between different players.
+M:MegaCrit.Sts2.Core.Modding.ModManager.GetNonGameplayRelevantModNameList :: Returns a list of the names of all loaded mods that do not affect gameplay.
+M:MegaCrit.Sts2.Core.Modding.ModManager.HandleAssemblyResolveFailure(System.Object,System.ResolveEventArgs) :: Resolves assemblies loaded by mods that may have a different version. When writing a mod DLL, the implementer may target a STS2 DLL that does not match the current version. When the dotnet runtime attempts to load the DL
+M:MegaCrit.Sts2.Core.Modding.ModManager.CallMetricsHooks(MegaCrit.Sts2.Core.Saves.SerializableRun,System.Boolean,System.UInt64) :: Called by the metrics uploader when metrics would be uploaded, but are not because there are mods present.
+M:MegaCrit.Sts2.Core.Modding.ModManager.AssociateAssemblyWithMod(System.String,System.Reflection.Assembly) :: Associates an assembly with a mod. If your mod creates types within a dynamic assembly, it must associate the assembly to the mod so that the types within the mod are detected. Each assembly must be associated with exact
+F:MegaCrit.Sts2.Core.Modding.ModManagerState.None :: ModManager is not yet initialized.
+F:MegaCrit.Sts2.Core.Modding.ModManagerState.Initialized :: ModManager is fully initialized. It may or may not have loaded mods.
+F:MegaCrit.Sts2.Core.Modding.ModManagerState.Skipped :: ModManager skipped initialization for some reason: - We're in test mode - This is an AOT build - nomods command line argument was passed
+T:MegaCrit.Sts2.Core.Modding.ModManifest :: Represents the JSON file which defines mod manifests.
+T:MegaCrit.Sts2.Core.Modding.ModSource :: Where a mod was loaded from.
+F:MegaCrit.Sts2.Core.Modding.ModSource.ModsDirectory :: The mod is located in the mods directory next to the executable.
+F:MegaCrit.Sts2.Core.Modding.ModSource.SteamWorkshop :: The mod was loaded from Steam Workshop.
+T:MegaCrit.Sts2.Core.Modding.SettingsSaveMod :: Represents a mod in the settings save. Used for: - Representing manual load order - Disabling/enabling mods
+=== HOOKS types ===
+T:MegaCrit.Sts2.Core.Hooks.Hook :: A static class containing all of the gameplay hooks.
+T:MegaCrit.Sts2.Core.Hooks.HpLossHookPhase :: Represents which phase(s) of HP-loss-modification hooks should be run for a given HP loss. In CreatureCmd.Damage, the two phases bracket damage redirection (Osty), so they are invoked separately with potentially differen
+T:MegaCrit.Sts2.Core.Hooks.ModifyDamageHookType :: Represents the type(s) of ModifyDamage hooks that should be run for a given instance of damage.
+=== Badge/stat-ish types ===
+T:MegaCrit.Sts2.Core.Nodes.Combat.NCreatureStateDisplay.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Combat.NCreatureStateDisplay.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Combat.NCreatureStateDisplay.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.HoverTips.NMapPointHistoryHoverTip.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.HoverTips.NMapPointHistoryHoverTip.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.HoverTips.NMapPointHistoryHoverTip.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerExpandedState :: Displays the player's relics and deck. Shown when a player clicks a remote player.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerExpandedState.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerExpandedState.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerExpandedState.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerState.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerState.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerState.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerStateContainer :: Displays a list of all the players in the session.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerStateContainer.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerStateContainer.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerStateContainer.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.NCardLibraryStats.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.NCardLibraryStats.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.NCardLibraryStats.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.NLibraryStatTickbox.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.NLibraryStatTickbox.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.NLibraryStatTickbox.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NBadge :: Badge visual which appears on the game over screen. Can be hovered to view its name and description.
+T:MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NBadge.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NBadge.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NBadge.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NActHistoryEntry.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NActHistoryEntry.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NActHistoryEntry.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NDeckHistory.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NDeckHistory.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NDeckHistory.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NDeckHistoryEntry.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NDeckHistoryEntry.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NDeckHistoryEntry.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NMapPointHistory.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NMapPointHistory.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NMapPointHistory.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NMapPointHistoryEntry.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NMapPointHistoryEntry.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NMapPointHistoryEntry.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRelicHistory.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRelicHistory.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRelicHistory.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRunHistory :: Rename to NRunHistoryScreen someday.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRunHistory.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRunHistory.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRunHistory.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRunHistoryArrowButton.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRunHistoryArrowButton.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRunHistoryArrowButton.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRunHistoryPlayerIcon.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRunHistoryPlayerIcon.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.NRunHistoryPlayerIcon.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NAchievementHolder.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NAchievementHolder.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NAchievementHolder.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NAchievementsGrid.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NAchievementsGrid.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NAchievementsGrid.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NCharacterStats.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NCharacterStats.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NCharacterStats.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NGeneralStatsGrid.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NGeneralStatsGrid.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NGeneralStatsGrid.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NShareStatsButton.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NShareStatsButton.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NShareStatsButton.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NStatEntry.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NStatEntry.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NStatEntry.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NStatsScreen.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NStatsScreen.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NStatsScreen.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NStatsTabManager.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NStatsTabManager.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.StatsScreen.NStatsTabManager.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Bindings.MegaSpine.MegaAnimationState :: C# bindings for SpineAnimationState.
+=== Multiplayer types ===
+T:MegaCrit.Sts2.Core.Nodes.Animation.NSpineAutoPlayer :: A node that automatically plays a single animation on a SpineSprite. There are two conditions that must be true when using this node: 1. This node must be the direct child of a SpineSprite node. 2. The parent SpineSprite
+T:MegaCrit.Sts2.Core.Nodes.Animation.NSpineAutoPlayer.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Animation.NSpineAutoPlayer.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Animation.NSpineAutoPlayer.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.CommonUi.NMultiplayerVoteContainer.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.CommonUi.NMultiplayerVoteContainer.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.CommonUi.NMultiplayerVoteContainer.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Debug.Multiplayer.NMultiplayerTest.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Debug.Multiplayer.NMultiplayerTest.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Debug.Multiplayer.NMultiplayerTest.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Debug.Multiplayer.NMultiplayerTestCharacterPaginator.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Debug.Multiplayer.NMultiplayerTestCharacterPaginator.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Debug.Multiplayer.NMultiplayerTestCharacterPaginator.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Ftue.NAscensionMultiplayerFtue :: This is a popup that lets you know that you have unlocked Multiplayer Ascensions and briefly explains it. This is NOT a true FTUE as disabling tutorials will not prevent this from showing up.
+T:MegaCrit.Sts2.Core.Nodes.Ftue.NAscensionMultiplayerFtue.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Ftue.NAscensionMultiplayerFtue.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Ftue.NAscensionMultiplayerFtue.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NGenericPopup :: Vertical popup used in several places to get confirmation for actions. Renders above the capstone screens (above top bar).
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NGenericPopup.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NGenericPopup.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NGenericPopup.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NInvitePlayersButton.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NInvitePlayersButton.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NInvitePlayersButton.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerCardIntent.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerCardIntent.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerCardIntent.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerNetworkProblemIndicator :: This indicator is displayed over players' indicators when we detect that our connection with them is bad.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerNetworkProblemIndicator.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerNetworkProblemIndicator.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerNetworkProblemIndicator.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerExpandedState :: Displays the player's relics and deck. Shown when a player clicks a remote player.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerExpandedState.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerExpandedState.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerExpandedState.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerIntentHandler :: Handles the following: - Displaying "intents" for remote players when they hover over potions, cards, relics, and powers - Pulling cards that are executing player choice from the play pile and displaying them above the p
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerIntentHandler.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerIntentHandler.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerIntentHandler.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerState.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerState.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerState.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerStateContainer :: Displays a list of all the players in the session.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerStateContainer.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerStateContainer.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerPlayerStateContainer.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerTimeoutOverlay :: This overlay is displayed over everything on the client when we lose connection with the host for a long period of time. It is in both Run and Game. The Game one is only used when we are in the middle of a transition, or
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerTimeoutOverlay.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerTimeoutOverlay.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerTimeoutOverlay.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerWarningPopup :: A popup to suggest that the player go and play a singleplayer run first.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerWarningPopup.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerWarningPopup.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NMultiplayerWarningPopup.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteLoadLobbyPlayerContainer.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteLoadLobbyPlayerContainer.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteLoadLobbyPlayerContainer.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteLobbyPlayer.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteLobbyPlayer.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteLobbyPlayer.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteLobbyPlayerContainer.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteLobbyPlayerContainer.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteLobbyPlayerContainer.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteMouseCursor.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteMouseCursor.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteMouseCursor.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteMouseCursorContainer :: Displays mouse cursors for remote players and syncs the local mouse cursor with remote players.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteMouseCursorContainer.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteMouseCursorContainer.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Multiplayer.NRemoteMouseCursorContainer.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect.NMultiplayerLoadGameScreen.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect.NMultiplayerLoadGameScreen.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect.NMultiplayerLoadGameScreen.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.MainMenu.NMultiplayerHostSubmenu.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.MainMenu.NMultiplayerHostSubmenu.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.MainMenu.NMultiplayerHostSubmenu.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.MainMenu.NMultiplayerSubmenu.MethodName :: Cached StringNames for the methods contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.MainMenu.NMultiplayerSubmenu.PropertyName :: Cached StringNames for the properties and fields contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Nodes.Screens.MainMenu.NMultiplayerSubmenu.SignalName :: Cached StringNames for the signals contained in this class, for fast lookup.
+T:MegaCrit.Sts2.Core.Entities.Cards.CardMultiplayerConstraint :: Manages card restrictions based on how many players there are in a run.

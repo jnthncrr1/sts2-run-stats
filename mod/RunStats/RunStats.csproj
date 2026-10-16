@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="local.props" Condition="Exists('local.props')" />
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>RunStats</AssemblyName>
+    <RootNamespace>RunStats</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
+  <!-- Default install locations when local.props does not override STS2GamePath. -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <STS2GamePath Condition="'$(STS2GamePath)' == ''">$(HOME)/Library/Application Support/Steam/steamapps/common/Slay the Spire 2</STS2GamePath>
+    <STS2DataDir>$(STS2GamePath)/SlayTheSpire2.app/Contents/Resources/data_sts2_macos_arm64</STS2DataDir>
+    <STS2ModsDir>$(STS2GamePath)/SlayTheSpire2.app/Contents/MacOS/mods</STS2ModsDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <STS2GamePath Condition="'$(STS2GamePath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2</STS2GamePath>
+    <STS2DataDir>$(STS2GamePath)\data_sts2_windows_x86_64</STS2DataDir>
+    <STS2ModsDir>$(STS2GamePath)\mods</STS2ModsDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="sts2">
+      <HintPath>$(STS2DataDir)/sts2.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="GodotSharp">
+      <HintPath>$(STS2DataDir)/GodotSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="RunStats.json" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="index.html" LogicalName="RunStats.index.html" />
+  </ItemGroup>
+
+  <!-- Copy the built mod into the game's mods folder so a plain `dotnet build` installs it. -->
+  <Target Name="InstallToGame" AfterTargets="Build" Condition="'$(SkipInstall)' != 'true'">
+    <ItemGroup>
+      <ModFiles Include="$(OutDir)RunStats.dll;$(OutDir)RunStats.pdb;$(OutDir)RunStats.json" />
+    </ItemGroup>
+    <MakeDir Directories="$(STS2ModsDir)/RunStats" />
+    <Copy SourceFiles="@(ModFiles)" DestinationFolder="$(STS2ModsDir)/RunStats" />
+    <Message Importance="high" Text="Installed RunStats to $(STS2ModsDir)/RunStats" />
+  </Target>
+</Project>
