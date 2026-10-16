@@ -1,8 +1,9 @@
 # sts2-run-stats
 
 A Slay the Spire 2 mod that tracks per-player totals across a whole run and shows them
-as a live table in your browser. Works in singleplayer and multiplayer, credits every
-player (not just the host), and only one person in the lobby needs it installed.
+as a live table in your browser, with a cumulative chart per stat by floor underneath.
+Works in singleplayer and multiplayer, credits every player (not just the host), and only
+one person in the lobby needs it installed.
 
 | Column | What it counts |
 |---|---|
@@ -16,12 +17,13 @@ Dealer-less damage is credited like this:
 - **Strangle** is one instance per applier and fires when that applier plays a card, so it is
   credited exactly.
 - **Haunt** sits on the player and fires on their own Soul play, so it is credited exactly.
-- **Doom** kills outright, so there is no damage event at all. A read-only Harmony prefix on
-  the Doom kill records the victim's HP just before it dies, and that HP is counted as damage
-  split between the Doom owners in proportion to their stacks.
+- **Doom** kills outright (on its own or through End of Days), so there is no damage event at
+  all. A read-only Harmony prefix on the Doom kill records the victim's HP just before it dies,
+  and that HP is counted as damage split between the Doom owners in proportion to their stacks.
 - **Poison and Demise** stacks from several players merge into one counter on the enemy. The
-  mod keeps a per-fight ledger of how many stacks each player owns. Each tick pays every owner
-  their stacks; Poison's one-per-turn decrement is taken from whoever owns the most stacks
+  mod keeps a per-fight ledger of how many stacks each player owns. A full tick pays every
+  owner their stacks; a short tick (the enemy had less HP than stacks) is split in proportion
+  to ownership. Poison's one-per-turn decrement is taken from whoever owns the most stacks
   (ties broken by lowest net ID). Stacks applied by monsters are not owned by anyone and
   their share of a tick is uncredited.
 
@@ -41,7 +43,7 @@ because their multiplicative effect has no equally clean attribution.
 | `mod/RunStats/src/RunStatsTracker.cs` | Subscribes to the game's combat history and aggregates per player |
 | `mod/RunStats/src/StatsHttpServer.cs` | Serves the viewer on `http://localhost:8765` from inside the game |
 | `mod/RunStats/src/StatsFile.cs` | Writes `RunStats/current.json` and per-run files under the game's user data dir |
-| `mod/RunStats/index.html` | The browser table (polls `/stats.json` once a second) |
+| `mod/RunStats/index.html` | The browser table and per-floor charts (polls `/stats.json` once a second) |
 | `tools/` | `restore-modded-progress.sh` / `.ps1`: repair the modded save profile after a Steam Cloud collision |
 | `notes/` | Research notes from the game's XML docs |
 | `decompiled/`, `game-refs/`, `reference-mods/` | Local only, gitignored: decompiled game source, game DLLs, other mods studied |
@@ -95,8 +97,12 @@ progress, it says so and stops; `--force` (`-Force` on Windows) overrides that.
 
 ## Viewing
 
-Open `http://localhost:8765` in any browser while the game is running. The JSON
-behind it is also on disk if you want to do anything else with it:
+Open `http://localhost:8765` in any browser while the game is running. The table shows
+run totals; below it, once two combats have finished, one chart per column plots each
+player's cumulative total by floor (hover for the floor, encounter and values). Colors
+follow the character: Ironclad red, Silent green, Defect blue, Necrobinder purple, Regent
+orange, with a different shade for each copy of the same character. The JSON behind it is
+also on disk if you want to do anything else with it:
 
 - macOS: `~/Library/Application Support/SlayTheSpire2/RunStats/current.json`
 - Windows: `%APPDATA%\SlayTheSpire2\RunStats\current.json`
@@ -105,7 +111,9 @@ Per-run files live next to it under `RunStats/runs/`, keyed by seed, game mode a
 players' net IDs. That file is the only place totals are kept: the mod re-reads it before
 every update, so deleting it resets the run (even while the game is running), and
 continuing a saved run picks up where the file left off. A restarted or reloaded fight
-discards the in-progress portion and resumes from the last finished combat.
+discards the in-progress portion and resumes from the last finished combat. Each finished
+combat also appends a snapshot of the totals to the file's `floors` list, which is what the
+charts read.
 
 ## How it works
 
