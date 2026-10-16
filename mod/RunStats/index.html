@@ -8,7 +8,6 @@
   :root {
     color-scheme: dark;
     --bg:#141216; --panel:#1f1b22; --text:#efe6d8; --muted:#9a8f88; --line:#352e33; --grid:#2a252c; --accent:#e0a84a;
-    --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70; --series-4:#c98500;
   }
   body { margin:0; background:var(--bg); color:var(--text); font:16px/1.4 system-ui, sans-serif; padding:16px; }
   main { display:inline-block; min-width:min(100%, 760px); }
@@ -29,9 +28,6 @@
   .swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:8px; vertical-align:baseline; }
   .empty { color:var(--muted); padding:24px; text-align:center; }
   .charts-head { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin:24px 0 10px; }
-  .toggle { display:inline-flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; font-size:13px; }
-  .toggle button { background:none; border:0; color:var(--muted); padding:5px 10px; cursor:pointer; font:inherit; font-size:13px; }
-  .toggle button.on { background:var(--panel); color:var(--text); }
   .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; color:var(--muted); }
   .legend span { display:inline-flex; align-items:center; }
   .charts { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:12px; }
@@ -41,7 +37,6 @@
   .chart .axis { fill:var(--muted); font-size:11px; }
   .chart .series { fill:none; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
   .chart .marker { stroke:var(--panel); stroke-width:2; }
-  .chart .endlabel { font-size:11px; fill:var(--text); }
   .chart .crosshair { stroke:var(--muted); stroke-width:1; stroke-dasharray:3 3; }
   .tip { position:absolute; pointer-events:none; background:#2b262e; border:1px solid var(--line); border-radius:6px; padding:8px 10px; font-size:12px; color:var(--text); white-space:nowrap; box-shadow:0 4px 14px rgba(0,0,0,.4); display:none; z-index:2; }
   .tip b { display:block; margin-bottom:4px; }
@@ -66,10 +61,7 @@
 
 <section id="chartsSection" hidden>
   <div class="charts-head">
-    <h2>Per floor</h2>
-    <div class="toggle" role="group" aria-label="Chart mode">
-      <button id="modeFloor" class="on">Per floor</button><button id="modeCum">Cumulative</button>
-    </div>
+    <h2>Cumulative by floor</h2>
     <div class="legend" id="legend"></div>
   </div>
   <div class="charts" id="charts"></div>
@@ -79,38 +71,51 @@
 <script>
 const cols = ["damage","block","damagePrevented","weak","vulnerable"];
 const titles = { damage:"Damage", block:"Block", damagePrevented:"Prevented", weak:"Weak", vulnerable:"Vulnerable" };
-const seriesVars = ["--series-1","--series-2","--series-3","--series-4"];
+// One hue per character; copies of the same character step through the variants in net-ID order.
+const characterColors = {
+  IRONCLAD:    ["#d14343","#8f2c2c","#ea8a8a","#b07a7a"],
+  SILENT:      ["#5fcf6e","#3c9448","#a3e6ac","#86ad8c"],
+  REGENT:      ["#f2a23a","#b57322","#f8c98a","#c2a079"],
+  NECROBINDER: ["#9a63e0","#6c42a3","#c3a3ee","#9f8ab8"],
+  DEFECT:      ["#4aa3f0","#2f72ad","#93c8f7","#7f9db5"],
+};
+const fallbackColors = ["#9a8f88","#6f6660","#c4b9b1","#4f4843"];
 const fmt = new Intl.NumberFormat();
-let mode = "floor";
-let lastSnapshot = null;
 
 async function tick() {
   try {
     const r = await fetch("/stats.json", {cache:"no-store"});
     if (!r.ok) throw new Error(r.status);
-    lastSnapshot = await r.json();
-    render(lastSnapshot);
+    render(await r.json());
   } catch (e) {
     document.getElementById("status").textContent = "no stats file yet";
     document.getElementById("dot").className = "dot";
   }
 }
 
-// Series color follows the player, in net-ID order, so filtering or re-ranking never repaints anyone.
+// Series color follows the player (by character, then copy index in net-ID order), so re-ranking never repaints anyone.
 function seriesOrder(s) {
   const ids = new Set();
   for (const p of s.players) ids.add(p.netId);
   for (const f of (s.floors || [])) for (const p of f.players) ids.add(p.netId);
   return [...ids].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
-function colorFor(order, netId) {
-  const i = order.indexOf(netId);
-  return i >= 0 && i < seriesVars.length ? `var(${seriesVars[i]})` : "var(--muted)";
+function playerFor(s, netId) {
+  return s.players.find(p => p.netId === netId) || (s.floors || []).flatMap(f => f.players).find(p => p.netId === netId) || {};
 }
-function nameFor(s, netId) {
-  const p = s.players.find(p => p.netId === netId) || (s.floors || []).flatMap(f => f.players).find(p => p.netId === netId);
-  return p ? p.name : String(netId);
+function nameFor(s, netId) { const p = playerFor(s, netId); return p.name || String(netId); }
+let colorMap = new Map();
+function assignColors(s, order) {
+  colorMap = new Map();
+  const copies = {};
+  for (const id of order) {
+    const ch = (playerFor(s, id).character || "").toUpperCase();
+    const n = copies[ch] = (copies[ch] || 0) + 1;
+    const ramp = characterColors[ch] || fallbackColors;
+    colorMap.set(id, ramp[Math.min(n - 1, ramp.length - 1)]);
+  }
 }
+function colorFor(order, netId) { return colorMap.get(netId) || "var(--muted)"; }
 
 function render(s) {
   const age = (Date.now() - Date.parse(s.updatedAt)) / 1000;
@@ -120,6 +125,7 @@ function render(s) {
     (s.inCombat ? "in combat" : "between combats") + " · updated " + (age < 60 ? Math.round(age) + "s ago" : Math.round(age/60) + "m ago");
   document.getElementById("run").textContent = "seed " + s.seed + " · " + s.combatsFinished + " combats";
   const order = seriesOrder(s);
+  assignColors(s, order);
   renderTable(s, order);
   renderCharts(s, order);
 }
@@ -147,14 +153,12 @@ function renderCharts(s, order) {
   const legend = document.getElementById("legend");
   legend.innerHTML = order.map(id => `<span><span class="swatch" style="background:${colorFor(order, id)}"></span>${esc(nameFor(s, id))}</span>`).join("");
 
-  // Per-floor values are the differences between consecutive committed snapshots.
-  const points = floors.map((f, i) => {
+  const points = floors.map(f => {
     const row = { floor: f.floor, encounter: f.encounter, act: f.act, values: {} };
     for (const id of order) {
       const cur = f.players.find(p => p.netId === id) || {};
-      const prev = i > 0 ? (floors[i-1].players.find(p => p.netId === id) || {}) : {};
       row.values[id] = {};
-      for (const c of cols) row.values[id][c] = mode === "cum" ? (cur[c] || 0) : (cur[c] || 0) - (prev[c] || 0);
+      for (const c of cols) row.values[id][c] = cur[c] || 0;
     }
     return row;
   });
@@ -165,7 +169,7 @@ function renderCharts(s, order) {
 }
 
 function chart(col, points, order, s) {
-  const W = 340, H = 170, padL = 44, padR = 56, padT = 10, padB = 24;
+  const W = 340, H = 170, padL = 44, padR = 12, padT = 10, padB = 24;
   const xs = points.map(p => p.floor);
   const xMin = Math.min(...xs), xMax = Math.max(...xs);
   let yMin = 0, yMax = 0;
@@ -183,8 +187,6 @@ function chart(col, points, order, s) {
     const color = colorFor(order, id);
     const d = points.map((p, i) => `${i ? "L" : "M"}${x(p.floor).toFixed(1)},${y(p.values[id][col]).toFixed(1)}`).join("");
     svg += `<path class="series" d="${d}" stroke="${color}"/>`;
-    const last = points[points.length - 1];
-    svg += `<text class="endlabel" x="${W - padR + 6}" y="${y(last.values[id][col]) + 4}">${esc(nameFor(s, id))}</text>`;
   }
   svg += `<line class="crosshair" id="x-${col}" x1="0" x2="0" y1="${padT}" y2="${H - padB}" visibility="hidden"/>`;
   svg += `<g id="m-${col}"></g>`;
@@ -237,14 +239,6 @@ function compact(n) { return Math.abs(n) >= 1000 ? (n / 1000).toFixed(n % 1000 ?
 function pretty(id) { return id.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, ch => ch.toUpperCase()); }
 function esc(t){ return String(t).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch])); }
 
-document.getElementById("modeFloor").onclick = () => setMode("floor");
-document.getElementById("modeCum").onclick = () => setMode("cum");
-function setMode(m) {
-  mode = m;
-  document.getElementById("modeFloor").className = m === "floor" ? "on" : "";
-  document.getElementById("modeCum").className = m === "cum" ? "on" : "";
-  if (lastSnapshot) render(lastSnapshot);
-}
 tick(); setInterval(tick, 1000);
 </script>
 </body>
