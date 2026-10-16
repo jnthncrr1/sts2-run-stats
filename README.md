@@ -6,7 +6,7 @@ player (not just the host), and only one person in the lobby needs it installed.
 
 | Column | What it counts |
 |---|---|
-| Damage | Unblocked damage dealt to enemies by the player or their pet (Osty), including relics, potions, Thorns and similar. Self-damage (Offering) and damage to allies never count. Poison, Demise, Strangle and Haunt deal their damage with no dealer recorded; see below for how they are credited. |
+| Damage | Damage dealt to enemies by the player or their pet (Osty), including what enemy block absorbed but not overkill; includes relics, potions, Thorns and similar. Self-damage (Offering) and damage to allies never count. Poison, Demise, Strangle and Haunt deal their damage with no dealer recorded; see below for how they are credited. |
 | Block | Block gained, plus Osty HP from summons and heals. Credited to the player whose card or potion did it (so shielding or summoning for an ally counts for the giver); block from Plating is credited to whoever applied the Plating (so a Plating potion thrown on an ally counts for the thrower); other block or summons from a power or relic outside a card or potion go to the receiver or summoner. |
 | Prevented | Enemy attack damage that did not happen because the player lowered the attacker's Strength (Piercing Wail, Dark Shackles, permanent Strength-down effects). Giving an enemy Strength counts negative, even if someone later cancels it. |
 | Weak / Vulnerable | Stacks applied to enemies. |

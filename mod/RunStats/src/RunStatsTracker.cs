@@ -178,7 +178,7 @@ public sealed class RunStatsTracker
                         StrengthMitigation.CreditPending(damage.Dealer, damage.Receiver, (netId, amount) => InProgressFor(snapshot, netId).DamagePrevented += amount);
                     return;
                 }
-                int dealt = damage.Result.UnblockedDamage;
+                int dealt = damage.Result.TotalDamage;
                 if (dealt <= 0) return;
                 Player? owner = OwnerOf(damage.Dealer);
                 if (owner != null)
