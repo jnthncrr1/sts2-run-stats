@@ -7,3 +7,5 @@ mod/RunStats/local.props
 notes/dotnet-install.sh
 notes/listener-test/bin/
 notes/listener-test/obj/
+dist/*.zip
+dist/RunStats/
