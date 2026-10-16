@@ -41,7 +41,7 @@ public sealed class RunStatsTracker
         _processedEntries = 0;
         Update(snapshot =>
         {
-            snapshot.InProgress.Clear();
+            snapshot.ClearInProgress();
             snapshot.InCombat = false;
             foreach (Player player in state.Players) RefreshIdentity(snapshot, player);
         });
@@ -53,7 +53,7 @@ public sealed class RunStatsTracker
         Update(snapshot =>
         {
             // A setup without a preceding CombatEnded is a restarted fight: drop the aborted attempt.
-            snapshot.InProgress.Clear();
+            snapshot.ClearInProgress();
             snapshot.InCombat = true;
             foreach (Player player in state.Players) RefreshIdentity(snapshot, player);
         });
@@ -118,12 +118,23 @@ public sealed class RunStatsTracker
     {
         switch (entry)
         {
+            case CardPlayStartedEntry cardPlay:
+                snapshot.LastCardPlayNetId = cardPlay.CardPlay.Player.NetId;
+                return;
             case DamageReceivedEntry damage:
             {
                 if (IsFriendly(damage.Receiver)) return;
+                int dealt = damage.Result.UnblockedDamage;
+                if (dealt <= 0) return;
                 Player? owner = OwnerOf(damage.Dealer);
-                if (owner == null) return;
-                InProgress(snapshot, owner).Damage += damage.Result.UnblockedDamage;
+                if (owner != null)
+                {
+                    InProgress(snapshot, owner).Damage += dealt;
+                }
+                else if (damage.Dealer == null)
+                {
+                    SourcelessDamage.Credit(snapshot, damage.Receiver, dealt, (netId, amount) => InProgressFor(snapshot, netId).Damage += amount);
+                }
                 return;
             }
             case BlockGainedEntry block:
@@ -137,6 +148,7 @@ public sealed class RunStatsTracker
             case PowerReceivedEntry power:
             {
                 if (IsFriendly(power.Power.Owner)) return;
+                SourcelessDamage.OnPowerChanged(snapshot, power);
                 Player? owner = OwnerOf(power.Applier);
                 if (owner == null) return;
                 if (power.Power.GetTypeForAmount(power.Amount) != PowerType.Debuff) return;
@@ -163,6 +175,8 @@ public sealed class RunStatsTracker
         RefreshIdentity(snapshot, player);
         return snapshot.InProgressFor(player.NetId);
     }
+
+    private static PlayerStats InProgressFor(RunStatsSnapshot snapshot, ulong netId) => snapshot.InProgressFor(netId);
 
     private static void RefreshIdentity(RunStatsSnapshot snapshot, Player player)
     {

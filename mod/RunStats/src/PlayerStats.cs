@@ -47,13 +47,30 @@ public sealed class RunStatsSnapshot
     /// <summary>Contribution of the fight currently in progress.</summary>
     [JsonPropertyName("inProgress")] public List<PlayerStats> InProgress { get; set; } = new();
 
+    /// <summary>
+    /// Who owns the stacks of Poison and Demise on each enemy, keyed "enemy|POWER" then
+    /// player net ID. Those powers deal their damage with no dealer, so the ticks are credited
+    /// from here. Lives and dies with the fight in progress.
+    /// </summary>
+    [JsonPropertyName("stackLedger")] public Dictionary<string, Dictionary<string, long>> StackLedger { get; set; } = new();
+
+    /// <summary>Net ID of the player whose card play most recently started; 0 if none.</summary>
+    [JsonPropertyName("lastCardPlayNetId")] public ulong LastCardPlayNetId { get; set; }
+
     public PlayerStats CommittedFor(ulong netId) => GetOrAdd(Committed, netId);
     public PlayerStats InProgressFor(ulong netId) => GetOrAdd(InProgress, netId);
 
     public void FoldInProgress()
     {
         foreach (PlayerStats delta in InProgress) CommittedFor(delta.NetId).Add(delta);
+        ClearInProgress();
+    }
+
+    public void ClearInProgress()
+    {
         InProgress.Clear();
+        StackLedger.Clear();
+        LastCardPlayNetId = 0;
     }
 
     public void RefreshDisplayTotals()

@@ -6,10 +6,21 @@ player (not just the host), and only one person in the lobby needs it installed.
 
 | Column | What it counts |
 |---|---|
-| Damage | Unblocked damage dealt to enemies by the player or their pet (Osty). Poison and other sourceless ticks are not credited to anyone. |
+| Damage | Unblocked damage dealt to enemies by the player or their pet (Osty), including relics, potions, Thorns and similar. Self-damage (Offering) and damage to allies never count. Poison, Demise, Strangle and Haunt deal their damage with no dealer recorded; see below for how they are credited. |
 | Block | Block gained from cards the player played (credited to the card's owner, so block given to an ally counts for the giver). |
 | Weak / Vulnerable | Stacks applied to enemies. |
 | Other debuffs | Stacks of any other debuff-type power applied to enemies (Poison, Frail, Strength down, ...). |
+
+Dealer-less damage is credited like this:
+
+- **Strangle** is one instance per applier and fires when that applier plays a card, so it is
+  credited exactly.
+- **Haunt** sits on the player and fires on their own Soul play, so it is credited exactly.
+- **Poison and Demise** stacks from several players merge into one counter on the enemy. The
+  mod keeps a per-fight ledger of how many stacks each player owns. Each tick pays every owner
+  their stacks; Poison's one-per-turn decrement is taken from whoever owns the most stacks
+  (ties broken by lowest net ID). Stacks applied by monsters are not owned by anyone and
+  their share of a tick is uncredited.
 
 ## Layout
 
