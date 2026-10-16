@@ -166,12 +166,21 @@ public sealed class RunStatsTracker
         return stats;
     }
 
+    /// <summary>
+    /// Multiplayer net IDs are Steam IDs, so the platform lookup gives the persona name. In
+    /// singleplayer the net ID is a small local number and the lookup echoes it back, so the
+    /// local account's own name is used instead.
+    /// </summary>
     private static string ResolveName(Player player)
     {
         try
         {
-            string name = PlatformUtil.GetPlayerNameRaw(RunManager.Instance.NetService.Platform, player.NetId);
-            if (!string.IsNullOrWhiteSpace(name)) return name;
+            PlatformType platform = RunManager.Instance.NetService.Platform;
+            string name = PlatformUtil.GetPlayerNameRaw(platform, player.NetId);
+            if (IsRealName(name, player.NetId)) return name;
+            ulong localId = PlatformUtil.GetLocalPlayerId(platform);
+            name = PlatformUtil.GetPlayerNameRaw(platform, localId);
+            if (IsRealName(name, localId)) return name;
         }
         catch
         {
@@ -179,6 +188,9 @@ public sealed class RunStatsTracker
         }
         return player.Character.Id.Entry;
     }
+
+    private static bool IsRealName(string? name, ulong id) =>
+        !string.IsNullOrWhiteSpace(name) && name != id.ToString();
 
     private static string BuildRunKey(RunState state)
     {
