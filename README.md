@@ -10,7 +10,7 @@ player (not just the host), and only one person in the lobby needs it installed.
 | Block | Block gained, plus Osty HP from summons and heals. Credited to the player whose card or potion did it (so shielding or summoning for an ally counts for the giver); block from Plating is credited to whoever applied the Plating (so a Plating potion thrown on an ally counts for the thrower); other block or summons from a power or relic outside a card or potion go to the receiver or summoner. |
 | Prevented | Enemy attack damage that did not happen because the player lowered the attacker's Strength (Piercing Wail, Dark Shackles, permanent Strength-down effects). Giving an enemy Strength counts negative, even if someone later cancels it. |
 | Weak / Vulnerable | Stacks applied to enemies. |
-| Other debuffs | Stacks of any other debuff-type power applied to enemies (Poison, Frail, Strength down, ...). |
+| Poison / Doom | Stacks applied to enemies. Their damage, when it resolves, is in the Damage column. |
 
 Dealer-less damage is credited like this:
 

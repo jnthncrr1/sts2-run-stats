@@ -4,7 +4,6 @@ using MegaCrit.Sts2.Core.Combat.History;
 using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
-using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Platform;
 using MegaCrit.Sts2.Core.Rooms;
@@ -211,16 +210,15 @@ public sealed class RunStatsTracker
                 SourcelessDamage.OnPowerChanged(snapshot, power);
                 StrengthMitigation.OnPowerChanged(snapshot, power);
                 Player? owner = OwnerOf(power.Applier);
-                if (owner == null) return;
-                if (power.Power.GetTypeForAmount(power.Amount) != PowerType.Debuff) return;
-                long stacks = (long)Math.Abs(power.Amount);
-                if (stacks == 0) return;
+                if (owner == null || power.Amount <= 0) return;
+                long stacks = (long)power.Amount;
                 PlayerStats stats = InProgress(snapshot, owner);
                 switch (power.Power)
                 {
                     case WeakPower: stats.Weak += stacks; break;
                     case VulnerablePower: stats.Vulnerable += stacks; break;
-                    default: stats.OtherDebuffs += stacks; break;
+                    case PoisonPower: stats.Poison += stacks; break;
+                    case DoomPower: stats.Doom += stacks; break;
                 }
                 return;
             }
