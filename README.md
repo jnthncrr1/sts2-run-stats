@@ -79,8 +79,11 @@ behind it is also on disk if you want to do anything else with it:
 - macOS: `~/Library/Application Support/SlayTheSpire2/RunStats/current.json`
 - Windows: `%APPDATA%\SlayTheSpire2\RunStats\current.json`
 
-Per-run history lives next to it under `RunStats/runs/`, keyed by seed, game mode
-and the players' net IDs. Continuing a saved run restores its totals from there.
+Per-run files live next to it under `RunStats/runs/`, keyed by seed, game mode and the
+players' net IDs. That file is the only place totals are kept: the mod re-reads it before
+every update, so deleting it resets the run (even while the game is running), and
+continuing a saved run picks up where the file left off. A restarted or reloaded fight
+discards the in-progress portion and resumes from the last finished combat.
 
 ## How it works
 

@@ -4,9 +4,9 @@ using Godot;
 namespace RunStats;
 
 /// <summary>
-/// Persists snapshots under the game's user data directory:
-/// RunStats/current.json is always the live run (what the viewer tails), and
-/// RunStats/runs/{runKey}.json survives save-and-continue so totals can be reloaded.
+/// The run file under RunStats/runs/ is the only store of totals; the tracker re-reads it
+/// before every update, so deleting it resets the run and edits made while the game runs
+/// are picked up. RunStats/current.json mirrors the active run for the viewer.
 /// </summary>
 public static class StatsFile
 {
@@ -16,30 +16,30 @@ public static class StatsFile
     public static string CurrentPath => Path.Combine(Directory, "current.json");
     public static string RunPath(string runKey) => Path.Combine(Directory, "runs", SafeFileName(runKey) + ".json");
 
-    public static void Write(RunStatsSnapshot snapshot)
+    public static RunStatsSnapshot Load(string runKey)
+    {
+        string path = RunPath(runKey);
+        if (File.Exists(path))
+        {
+            try
+            {
+                RunStatsSnapshot? saved = JsonSerializer.Deserialize<RunStatsSnapshot>(File.ReadAllText(path));
+                if (saved != null) return saved;
+            }
+            catch (Exception e)
+            {
+                GD.PushWarning($"[RunStats] could not read {path}, starting this run from zero: {e.Message}");
+            }
+        }
+        return new RunStatsSnapshot { RunKey = runKey };
+    }
+
+    public static void Save(RunStatsSnapshot snapshot)
     {
         snapshot.UpdatedAt = DateTimeOffset.UtcNow;
         string json = JsonSerializer.Serialize(snapshot, Options);
+        WriteAtomic(RunPath(snapshot.RunKey), json);
         WriteAtomic(CurrentPath, json);
-        if (snapshot.RunKey.Length > 0)
-        {
-            WriteAtomic(RunPath(snapshot.RunKey), json);
-        }
-    }
-
-    public static RunStatsSnapshot? Read(string runKey)
-    {
-        string path = RunPath(runKey);
-        if (!File.Exists(path)) return null;
-        try
-        {
-            return JsonSerializer.Deserialize<RunStatsSnapshot>(File.ReadAllText(path));
-        }
-        catch (Exception e)
-        {
-            GD.PushWarning($"[RunStats] Could not read {path}: {e.Message}");
-            return null;
-        }
     }
 
     private static void WriteAtomic(string path, string contents)

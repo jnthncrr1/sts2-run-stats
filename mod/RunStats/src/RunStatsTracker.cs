@@ -1,6 +1,6 @@
-using System.Diagnostics;
 using Godot;
 using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Combat.History;
 using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -13,86 +13,86 @@ using MegaCrit.Sts2.Core.Runs;
 namespace RunStats;
 
 /// <summary>
-/// Aggregates per-player totals from the game's combat history. Every client runs the full
-/// deterministic combat simulation, so the local history already contains every player's
-/// actions and no network traffic or Harmony patching is required.
+/// Aggregates per-player totals from the game's combat history into the run file. Every
+/// client runs the full deterministic combat simulation, so the local history already
+/// contains every player's actions and no network traffic or Harmony patching is required.
+/// Totals are never held here: each update loads the run file, applies the new history
+/// entries, and writes it back.
 /// </summary>
 public sealed class RunStatsTracker
 {
-    private readonly Dictionary<ulong, PlayerStats> _committed = new();
-    private readonly Dictionary<ulong, PlayerStats> _inProgress = new();
-    private readonly Stopwatch _sinceLastWrite = Stopwatch.StartNew();
-    private static readonly TimeSpan WriteThrottle = TimeSpan.FromMilliseconds(250);
-
     private string _runKey = "";
     private string _seed = "";
-    private int _combatsFinished;
-    private bool _inCombat;
     private int _processedEntries;
-    private bool _dirty;
 
     public void Attach()
     {
         RunManager.Instance.RunStarted += OnRunStarted;
         CombatManager.Instance.CombatSetUp += OnCombatSetUp;
         CombatManager.Instance.CombatEnded += OnCombatEnded;
-        CombatManager.Instance.TurnEnded += _ => Flush(force: true);
         CombatManager.Instance.History.Changed += OnHistoryChanged;
-        GD.Print("[RunStats] attached; writing to " + StatsFile.CurrentPath);
+        GD.Print("[RunStats] attached; run files under " + StatsFile.Directory);
     }
 
     private void OnRunStarted(RunState state)
     {
         _seed = state.Rng.StringSeed;
         _runKey = BuildRunKey(state);
-        _committed.Clear();
-        _inProgress.Clear();
-        _combatsFinished = 0;
         _processedEntries = 0;
-        _inCombat = false;
-
-        // A saved run being continued: restore totals accumulated before the save.
-        RunStatsSnapshot? saved = StatsFile.Read(_runKey);
-        if (saved != null)
+        Update(snapshot =>
         {
-            // Files written before the committed/in-progress split only have display totals.
-            List<PlayerStats> source = saved.Committed.Count > 0 ? saved.Committed : saved.Players;
-            foreach (PlayerStats p in source) _committed[p.NetId] = p;
-            _combatsFinished = saved.CombatsFinished;
-            GD.Print($"[RunStats] restored {source.Count} players for run {_runKey}");
-        }
-
-        foreach (Player player in state.Players) EnsurePlayer(player);
-        Flush(force: true);
+            snapshot.InProgress.Clear();
+            snapshot.InCombat = false;
+            foreach (Player player in state.Players) RefreshIdentity(snapshot, player);
+        });
     }
 
     private void OnCombatSetUp(CombatState state)
     {
-        // A new setup without a preceding CombatEnded is a restarted fight: drop the aborted attempt.
-        _inProgress.Clear();
-        _inCombat = true;
         _processedEntries = 0;
-        foreach (Player player in state.Players) EnsurePlayer(player);
-        Flush(force: true);
+        Update(snapshot =>
+        {
+            // A setup without a preceding CombatEnded is a restarted fight: drop the aborted attempt.
+            snapshot.InProgress.Clear();
+            snapshot.InCombat = true;
+            foreach (Player player in state.Players) RefreshIdentity(snapshot, player);
+        });
     }
 
     private void OnCombatEnded(CombatRoom room)
     {
-        ProcessNewEntries();
-        foreach (PlayerStats delta in _inProgress.Values) Committed(delta.NetId).Add(delta);
-        _inProgress.Clear();
-        _inCombat = false;
-        _combatsFinished++;
-        Flush(force: true);
+        Update(snapshot =>
+        {
+            ApplyNewEntries(snapshot);
+            snapshot.FoldInProgress();
+            snapshot.InCombat = false;
+            snapshot.CombatsFinished++;
+        });
     }
 
     private void OnHistoryChanged()
     {
-        ProcessNewEntries();
-        Flush(force: false);
+        Update(ApplyNewEntries);
     }
 
-    private void ProcessNewEntries()
+    private void Update(Action<RunStatsSnapshot> change)
+    {
+        if (_runKey.Length == 0) return;
+        try
+        {
+            RunStatsSnapshot snapshot = StatsFile.Load(_runKey);
+            snapshot.Seed = _seed;
+            change(snapshot);
+            snapshot.RefreshDisplayTotals();
+            StatsFile.Save(snapshot);
+        }
+        catch (Exception e)
+        {
+            GD.PushWarning("[RunStats] update failed: " + e);
+        }
+    }
+
+    private void ApplyNewEntries(RunStatsSnapshot snapshot)
     {
         var entries = CombatManager.Instance.History.Entries.ToList();
         if (entries.Count < _processedEntries)
@@ -104,7 +104,7 @@ public sealed class RunStatsTracker
         {
             try
             {
-                Record(entries[i]);
+                Record(snapshot, entries[i]);
             }
             catch (Exception e)
             {
@@ -114,7 +114,7 @@ public sealed class RunStatsTracker
         _processedEntries = entries.Count;
     }
 
-    private void Record(MegaCrit.Sts2.Core.Combat.History.CombatHistoryEntry entry)
+    private static void Record(RunStatsSnapshot snapshot, CombatHistoryEntry entry)
     {
         switch (entry)
         {
@@ -123,8 +123,7 @@ public sealed class RunStatsTracker
                 if (IsFriendly(damage.Receiver)) return;
                 Player? owner = OwnerOf(damage.Dealer);
                 if (owner == null) return;
-                InProgress(owner).Damage += damage.Result.UnblockedDamage;
-                _dirty = true;
+                InProgress(snapshot, owner).Damage += damage.Result.UnblockedDamage;
                 return;
             }
             case BlockGainedEntry block:
@@ -132,8 +131,7 @@ public sealed class RunStatsTracker
                 // Credit whoever played the card; fall back to the creature that received the block.
                 Player? owner = block.CardPlay?.Player ?? OwnerOf(block.Receiver);
                 if (owner == null || block.Amount <= 0) return;
-                InProgress(owner).Block += block.Amount;
-                _dirty = true;
+                InProgress(snapshot, owner).Block += block.Amount;
                 return;
             }
             case PowerReceivedEntry power:
@@ -141,18 +139,16 @@ public sealed class RunStatsTracker
                 if (IsFriendly(power.Power.Owner)) return;
                 Player? owner = OwnerOf(power.Applier);
                 if (owner == null) return;
-                PowerType type = power.Power.GetTypeForAmount(power.Amount);
-                if (type != PowerType.Debuff) return;
+                if (power.Power.GetTypeForAmount(power.Amount) != PowerType.Debuff) return;
                 long stacks = (long)Math.Abs(power.Amount);
                 if (stacks == 0) return;
-                PlayerStats stats = InProgress(owner);
+                PlayerStats stats = InProgress(snapshot, owner);
                 switch (power.Power)
                 {
                     case WeakPower: stats.Weak += stacks; break;
                     case VulnerablePower: stats.Vulnerable += stacks; break;
                     default: stats.OtherDebuffs += stacks; break;
                 }
-                _dirty = true;
                 return;
             }
         }
@@ -162,41 +158,17 @@ public sealed class RunStatsTracker
 
     private static Player? OwnerOf(Creature? creature) => creature?.Player ?? creature?.PetOwner;
 
-    private void EnsurePlayer(Player player)
+    private static PlayerStats InProgress(RunStatsSnapshot snapshot, Player player)
     {
-        PlayerStats stats = Committed(player.NetId);
+        RefreshIdentity(snapshot, player);
+        return snapshot.InProgressFor(player.NetId);
+    }
+
+    private static void RefreshIdentity(RunStatsSnapshot snapshot, Player player)
+    {
+        PlayerStats stats = snapshot.CommittedFor(player.NetId);
         stats.Name = ResolveName(player);
         stats.Character = player.Character.Id.Entry;
-    }
-
-    private PlayerStats Committed(ulong netId) => GetOrAdd(_committed, netId);
-
-    private PlayerStats InProgress(Player player)
-    {
-        EnsurePlayer(player);
-        return GetOrAdd(_inProgress, player.NetId);
-    }
-
-    private static PlayerStats GetOrAdd(Dictionary<ulong, PlayerStats> map, ulong netId)
-    {
-        if (!map.TryGetValue(netId, out PlayerStats? stats))
-        {
-            stats = new PlayerStats { NetId = netId };
-            map[netId] = stats;
-        }
-        return stats;
-    }
-
-    private List<PlayerStats> DisplayTotals()
-    {
-        var totals = new List<PlayerStats>();
-        foreach (PlayerStats committed in _committed.Values)
-        {
-            PlayerStats total = committed.Clone();
-            if (_inProgress.TryGetValue(committed.NetId, out PlayerStats? delta)) total.Add(delta);
-            totals.Add(total);
-        }
-        return totals.OrderByDescending(p => p.Damage).ToList();
     }
 
     /// <summary>
@@ -229,29 +201,5 @@ public sealed class RunStatsTracker
     {
         var ids = state.Players.Select(p => p.NetId).OrderBy(id => id);
         return $"{state.Rng.StringSeed}-{state.GameMode}-{string.Join("_", ids)}";
-    }
-
-    private void Flush(bool force)
-    {
-        if (!force && (!_dirty || _sinceLastWrite.Elapsed < WriteThrottle)) return;
-        if (_runKey.Length == 0 && _committed.Count == 0) return;
-        try
-        {
-            StatsFile.Write(new RunStatsSnapshot
-            {
-                RunKey = _runKey,
-                Seed = _seed,
-                InCombat = _inCombat,
-                CombatsFinished = _combatsFinished,
-                Players = DisplayTotals(),
-                Committed = _committed.Values.ToList(),
-            });
-            _dirty = false;
-            _sinceLastWrite.Restart();
-        }
-        catch (Exception e)
-        {
-            GD.PushWarning("[RunStats] write failed: " + e.Message);
-        }
     }
 }

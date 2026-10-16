@@ -33,13 +33,51 @@ public sealed class RunStatsSnapshot
     [JsonPropertyName("inCombat")] public bool InCombat { get; set; }
     [JsonPropertyName("combatsFinished")] public int CombatsFinished { get; set; }
     [JsonPropertyName("updatedAt")] public DateTimeOffset UpdatedAt { get; set; }
+
     /// <summary>Totals shown to the viewer: finished combats plus the fight in progress.</summary>
     [JsonPropertyName("players")] public List<PlayerStats> Players { get; set; } = new();
 
     /// <summary>
     /// Totals through the last finished combat only. A combat restart (retry, or quitting
     /// and continuing mid-fight) replays the fight from scratch, so the in-progress part
-    /// is discarded and restored runs start from these.
+    /// is discarded and a continued run starts from these.
     /// </summary>
     [JsonPropertyName("committed")] public List<PlayerStats> Committed { get; set; } = new();
+
+    /// <summary>Contribution of the fight currently in progress.</summary>
+    [JsonPropertyName("inProgress")] public List<PlayerStats> InProgress { get; set; } = new();
+
+    public PlayerStats CommittedFor(ulong netId) => GetOrAdd(Committed, netId);
+    public PlayerStats InProgressFor(ulong netId) => GetOrAdd(InProgress, netId);
+
+    public void FoldInProgress()
+    {
+        foreach (PlayerStats delta in InProgress) CommittedFor(delta.NetId).Add(delta);
+        InProgress.Clear();
+    }
+
+    public void RefreshDisplayTotals()
+    {
+        Players = Committed
+            .Select(c =>
+            {
+                PlayerStats total = c.Clone();
+                PlayerStats? delta = InProgress.FirstOrDefault(d => d.NetId == c.NetId);
+                if (delta != null) total.Add(delta);
+                return total;
+            })
+            .OrderByDescending(p => p.Damage)
+            .ToList();
+    }
+
+    private static PlayerStats GetOrAdd(List<PlayerStats> list, ulong netId)
+    {
+        PlayerStats? stats = list.FirstOrDefault(p => p.NetId == netId);
+        if (stats == null)
+        {
+            stats = new PlayerStats { NetId = netId };
+            list.Add(stats);
+        }
+        return stats;
+    }
 }
