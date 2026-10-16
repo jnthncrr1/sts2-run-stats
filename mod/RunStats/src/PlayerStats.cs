@@ -47,6 +47,9 @@ public sealed class RunStatsSnapshot
     /// </summary>
     [JsonPropertyName("committed")] public List<PlayerStats> Committed { get; set; } = new();
 
+    /// <summary>Committed totals after each finished combat, in order, for the per-floor charts.</summary>
+    [JsonPropertyName("floors")] public List<FloorSnapshot> Floors { get; set; } = new();
+
     /// <summary>Contribution of the fight currently in progress.</summary>
     [JsonPropertyName("inProgress")] public List<PlayerStats> InProgress { get; set; } = new();
 
@@ -128,4 +131,13 @@ public sealed class StrengthReduction
 {
     [JsonPropertyName("netId")] public ulong NetId { get; set; }
     [JsonPropertyName("amount")] public long Amount { get; set; }
+}
+
+public sealed class FloorSnapshot
+{
+    [JsonPropertyName("floor")] public int Floor { get; set; }
+    [JsonPropertyName("act")] public int Act { get; set; }
+    [JsonPropertyName("actFloor")] public int ActFloor { get; set; }
+    [JsonPropertyName("encounter")] public string Encounter { get; set; } = "";
+    [JsonPropertyName("players")] public List<PlayerStats> Players { get; set; } = new();
 }

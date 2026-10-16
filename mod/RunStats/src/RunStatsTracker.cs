@@ -69,6 +69,15 @@ public sealed class RunStatsTracker
             snapshot.FoldInProgress();
             snapshot.InCombat = false;
             snapshot.CombatsFinished++;
+            IRunState? run = room.CombatState?.RunState;
+            snapshot.Floors.Add(new FloorSnapshot
+            {
+                Floor = run?.TotalFloor ?? snapshot.Floors.Count + 1,
+                Act = (run?.CurrentActIndex ?? 0) + 1,
+                ActFloor = run?.ActFloor ?? 0,
+                Encounter = room.Encounter?.Id.Entry ?? "",
+                Players = snapshot.Committed.Select(p => p.Clone()).ToList(),
+            });
         });
     }
 
