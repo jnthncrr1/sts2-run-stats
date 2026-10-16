@@ -45,6 +45,7 @@ because their multiplicative effect has no equally clean attribution.
 | `mod/RunStats/src/StatsFile.cs` | Writes `RunStats/current.json` and per-run files under the game's user data dir |
 | `mod/RunStats/index.html` | The browser table and per-floor charts (polls `/stats.json` once a second) |
 | `tools/` | `restore-modded-progress.sh` / `.ps1`: repair the modded save profile after a Steam Cloud collision |
+| `dist/` | `README.md` for friends; `RunStats.zip` (gitignored) bundles it with the DLL, manifest and scripts |
 | `notes/` | Research notes from the game's XML docs |
 | `decompiled/`, `game-refs/`, `reference-mods/` | Local only, gitignored: decompiled game source, game DLLs, other mods studied |
 
