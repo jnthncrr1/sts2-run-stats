@@ -35,3 +35,13 @@ next to it. Running it when nothing is wrong does nothing.
 
 `current.json` is the live run; `runs/` keeps one file per run. Delete a run's file to
 reset its totals.
+
+Combat events are recorded separately in `events/<runKey>/<sessionId>.jsonl` under
+that same directory, one JSON object per line. These include card actions, damage,
+block, power changes, monster moves and combat/turn boundaries, plus the
+mod's supplemental observations. Each card or potion action has one ID, with its effects
+linked to that ID. Draws, separate play start/end events and duplicate attack summaries
+are omitted; card resource costs are on the action itself. Restarted fights are kept as separate attempts;
+deleting the totals file does not delete these logs. Files accumulate until you
+remove them yourself. Recordings begin when this version is installed; older runs
+cannot have their missing events reconstructed from totals.

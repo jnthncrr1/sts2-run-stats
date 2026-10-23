@@ -32,6 +32,7 @@ public sealed class RunStatsTracker
         CombatManager.Instance.History.Changed += OnHistoryChanged;
         DoomKillPatch.DoomKilled += OnDoomKilled;
         PetHealPatch.PetHealed += OnPetHealed;
+        MissingDamagePatch.DamageUnrecorded += OnUnrecordedDamage;
         GD.Print("[RunStats] attached; run files under " + StatsFile.Directory);
     }
 
@@ -84,6 +85,16 @@ public sealed class RunStatsTracker
     private void OnHistoryChanged()
     {
         Update(ApplyNewEntries);
+    }
+
+    private void OnUnrecordedDamage(DamageReceivedEntry entry)
+    {
+        Update(snapshot =>
+        {
+            if (!snapshot.InCombat) return;
+            ApplyNewEntries(snapshot);
+            Record(snapshot, entry);
+        });
     }
 
     private void OnPetHealed(Creature pet, int healed)
@@ -263,7 +274,7 @@ public sealed class RunStatsTracker
     /// singleplayer the net ID is a small local number and the lookup echoes it back, so the
     /// local account's own name is used instead.
     /// </summary>
-    private static string ResolveName(Player player)
+    internal static string ResolveName(Player player)
     {
         try
         {
@@ -284,7 +295,7 @@ public sealed class RunStatsTracker
     private static bool IsRealName(string? name, ulong id) =>
         !string.IsNullOrWhiteSpace(name) && name != id.ToString();
 
-    private static string BuildRunKey(RunState state)
+    internal static string BuildRunKey(RunState state)
     {
         var ids = state.Players.Select(p => p.NetId).OrderBy(id => id);
         return $"{state.Rng.StringSeed}-{state.GameMode}-{string.Join("_", ids)}";

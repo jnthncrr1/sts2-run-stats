@@ -74,6 +74,11 @@ public static class StrengthMitigation
         if (dealer.CombatId == null || target.CombatId == null) return;
         if (!_pending.Remove((dealer.CombatId.Value, target.CombatId.Value), out var shares)) return;
         foreach (var share in shares) credit(share.netId, share.prevented);
+        ModEntry.Recorder?.RecordHook("StrengthMitigationCredited", () => new
+        {
+            dealer = CombatEventData.Creature(dealer), target = CombatEventData.Creature(target),
+            shares = shares.Select(s => new { playerNetId = s.netId.ToString(), s.prevented }).ToArray(),
+        });
     }
 
     public static void ClearPending() => _pending.Clear();
@@ -164,6 +169,10 @@ public static class TemporaryStrengthRevertPatch
             if (applier == null) return;
             bool isReduction = __instance.Type == MegaCrit.Sts2.Core.Entities.Powers.PowerType.Debuff;
             long signedAmount = isReduction ? __instance.Amount : -__instance.Amount;
+            ModEntry.Recorder?.RecordHook("TemporaryStrengthReverted", () => new
+            {
+                enemy = CombatEventData.Creature(__instance.Owner), playerNetId = applier.NetId.ToString(), signedAmount,
+            });
             ModEntry.Tracker?.Update(snapshot =>
                 StrengthMitigation.OnTemporaryChangeReverted(snapshot, __instance.Owner, applier.NetId, signedAmount));
         }

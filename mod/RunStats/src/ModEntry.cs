@@ -11,11 +11,14 @@ public static class ModEntry
     public const int ViewerPort = 8765;
 
     public static RunStatsTracker? Tracker { get; private set; }
+    public static CombatEventRecorder? Recorder { get; private set; }
     public static StatsHttpServer? Server { get; private set; }
 
     public static void Initialize()
     {
         new Harmony("jcorreia.RunStats").PatchAll(typeof(ModEntry).Assembly);
+        Recorder = new CombatEventRecorder(StatsFile.Directory);
+        Recorder.Attach();
         Tracker = new RunStatsTracker();
         Tracker.Attach();
         Server = new StatsHttpServer(ViewerPort, LoadPage(), ReadStats, GD.Print);

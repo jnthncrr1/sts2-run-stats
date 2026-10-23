@@ -1,4 +1,5 @@
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Models;
 
@@ -14,11 +15,12 @@ namespace RunStats;
 public static class PotionUsePatch
 {
     [HarmonyPrefix, HarmonyPatch(nameof(Hook.BeforePotionUsed))]
-    public static void Before(PotionModel potion)
+    public static void Before(PotionModel potion, Creature? target)
     {
         try
         {
             ulong netId = potion.Owner.NetId;
+            ModEntry.Recorder?.PotionUsed(potion, target);
             ModEntry.Tracker?.Update(snapshot => snapshot.ActivePotionNetId = netId);
         }
         catch (Exception e)
@@ -41,5 +43,20 @@ public static class PotionUsePatch
         {
             Godot.GD.PushWarning("[RunStats] potion hook failed: " + e);
         }
+    }
+}
+
+[HarmonyPatch(typeof(PotionModel), nameof(PotionModel.OnUseWrapper))]
+public static class PotionActionScopePatch
+{
+    [HarmonyPrefix]
+    public static void Before(PotionModel __instance, out object? __state) =>
+        __state = ModEntry.Recorder?.EnterActionScope(__instance);
+
+    [HarmonyPostfix]
+    public static void After(object? __state, ref Task __result)
+    {
+        if (__state != null && ModEntry.Recorder != null)
+            __result = ModEntry.Recorder.CompleteActionScope(__result, __state);
     }
 }

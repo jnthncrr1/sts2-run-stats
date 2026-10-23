@@ -9,3 +9,5 @@ notes/listener-test/bin/
 notes/listener-test/obj/
 dist/*.zip
 dist/RunStats/
+tests/RunStats.Tests/bin/
+tests/RunStats.Tests/obj/
