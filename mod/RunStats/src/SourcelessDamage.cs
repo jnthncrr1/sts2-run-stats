@@ -27,51 +27,49 @@ public static class SourcelessDamage
         if (applier != null && entry.Amount > 0)
         {
             // The entry is logged before the new total is set, so Power.Amount is the total the
-            // ledger should already account for. A mismatch means the power expired or was
-            // cleansed since (removals are not logged) and earlier ownership is stale.
-            if (owned.Values.Sum() != entry.Power.Amount) owned.Clear();
-            string id = applier.NetId.ToString();
-            owned[id] = owned.GetValueOrDefault(id) + (long)entry.Amount;
+            // ledger should already account for.
+            StackAttribution.AddStacks(owned, applier.NetId, (long)entry.Amount, entry.Power.Amount);
         }
         else if (entry.Amount < 0)
         {
-            // The game's own decrement (or a reduction by someone else): take it from the top owner.
-            long toRemove = (long)-entry.Amount;
-            while (toRemove > 0 && owned.Count > 0)
-            {
-                string top = owned.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).First().Key;
-                long take = Math.Min(toRemove, owned[top]);
-                owned[top] -= take;
-                toRemove -= take;
-                if (owned[top] <= 0) owned.Remove(top);
-            }
+            // The game's own decrement (or a reduction by someone else).
+            StackAttribution.RemoveFromTopOwner(owned, (long)-entry.Amount);
         }
 
         if (owned.Count == 0) snapshot.StackLedger.Remove(LedgerKey(entry.Power));
         else snapshot.StackLedger[LedgerKey(entry.Power)] = owned;
     }
 
-    public static void Credit(RunStatsSnapshot snapshot, Creature receiver, int dealt, Action<ulong, long> credit)
+    public static void Credit(RunStatsSnapshot snapshot, Creature receiver, int dealt, bool killed, Action<ulong, long> credit)
     {
         // Strangle: the instance belonging to the player who just played a card.
-        StranglePower? strangle = PickStrangle(receiver, dealt, snapshot.LastCardPlayNetId);
-        if (strangle != null)
+        var strangles = receiver.Powers.OfType<StranglePower>()
+            .Select(p => (owner: p.Applier?.Player ?? p.Applier?.PetOwner, stacks: (long)p.Amount))
+            .Where(s => s.owner != null)
+            .Select(s => (s.owner!.NetId, s.stacks))
+            .ToList();
+        ulong? strangler = StackAttribution.PickStrangleApplier(strangles, dealt, killed, snapshot.LastCardPlayNetId);
+        if (strangler != null)
         {
-            Player owner = strangle.Applier!.Player ?? strangle.Applier.PetOwner!;
-            credit(owner.NetId, dealt);
+            credit(strangler.Value, dealt);
             return;
         }
 
         // Demise fires at the enemy's turn end for exactly its stack count; Poison at turn start.
         DemisePower? demise = receiver.GetPower<DemisePower>();
-        if (demise != null && demise.Amount == dealt && TryPayFromLedger(snapshot, demise, dealt, credit)) return;
+        if (demise != null && StackAttribution.MatchesStacks(demise.Amount, dealt, killed) && TryPayFromLedger(snapshot, demise, dealt, credit)) return;
 
         PoisonPower? poison = receiver.GetPower<PoisonPower>();
         if (poison != null && TryPayFromLedger(snapshot, poison, dealt, credit)) return;
 
         // Haunt: the buff is on the player, triggered by their own Soul play.
-        Player? haunter = PickHaunter(receiver, dealt, snapshot.LastCardPlayNetId);
-        if (haunter != null) credit(haunter.NetId, dealt);
+        IReadOnlyList<Player> players = receiver.CombatState?.Players ?? Array.Empty<Player>();
+        var haunts = players
+            .Select(p => (p.NetId, stacks: (long)(p.Creature.GetPower<HauntPower>()?.Amount ?? 0)))
+            .Where(h => h.stacks > 0)
+            .ToList();
+        ulong? haunter = StackAttribution.PickHaunter(haunts, dealt, killed, snapshot.LastCardPlayNetId);
+        if (haunter != null) credit(haunter.Value, dealt);
     }
 
     /// <summary>
@@ -86,64 +84,12 @@ public static class SourcelessDamage
         long totalStacks = owned.Values.Sum();
         if (totalStacks <= 0) return;
 
-        SplitProportionally(owned.Select(kv => (ulong.Parse(kv.Key), kv.Value)), hpAtDeath, credit);
+        StackAttribution.SplitProportionally(owned.Select(kv => (ulong.Parse(kv.Key), kv.Value)), hpAtDeath, credit);
         snapshot.StackLedger.Remove(LedgerKey(doom));
     }
 
-    /// <summary>
-    /// Pays each owner their stacks. When less was dealt than the stacks owned (the enemy had
-    /// less HP left), the shortfall is split proportionally with largest-remainder rounding.
-    /// </summary>
-    private static bool TryPayFromLedger(RunStatsSnapshot snapshot, PowerModel power, int dealt, Action<ulong, long> credit)
-    {
-        if (!snapshot.StackLedger.TryGetValue(LedgerKey(power), out var owned) || owned.Count == 0) return false;
-        long totalOwned = owned.Values.Sum();
-        if (totalOwned <= 0) return false;
-        if (dealt >= totalOwned)
-        {
-            foreach (var kv in owned) credit(ulong.Parse(kv.Key), kv.Value);
-            return true;
-        }
-        SplitProportionally(owned.Select(kv => (ulong.Parse(kv.Key), kv.Value)), dealt, credit);
-        return true;
-    }
-
-    /// <summary>Splits an integer total across weights so the shares sum exactly to the total.</summary>
-    public static void SplitProportionally(IEnumerable<(ulong netId, long weight)> weights, long total, Action<ulong, long> credit)
-    {
-        var list = weights.Where(w => w.weight > 0).ToList();
-        long weightSum = list.Sum(w => w.weight);
-        if (weightSum <= 0 || total <= 0) return;
-        var shares = list
-            .Select(w => { double exact = (double)total * w.weight / weightSum; long whole = (long)Math.Floor(exact); return (w.netId, whole, frac: exact - whole); })
-            .ToList();
-        long leftover = total - shares.Sum(x => x.whole);
-        foreach (var share in shares.OrderByDescending(x => x.frac).ThenBy(x => x.netId))
-        {
-            long amount = share.whole + (leftover > 0 ? 1 : 0);
-            if (leftover > 0) leftover--;
-            if (amount > 0) credit(share.netId, amount);
-        }
-    }
-
-    private static StranglePower? PickStrangle(Creature receiver, int dealt, ulong lastCardPlayer)
-    {
-        var candidates = receiver.Powers.OfType<StranglePower>()
-            .Where(p => (p.Applier?.Player ?? p.Applier?.PetOwner) != null)
-            .ToList();
-        if (candidates.Count == 0) return null;
-        return candidates.FirstOrDefault(p => (p.Applier!.Player ?? p.Applier.PetOwner)!.NetId == lastCardPlayer && p.Amount == dealt)
-            ?? candidates.FirstOrDefault(p => p.Amount == dealt)
-            ?? (candidates.Count == 1 ? candidates[0] : null);
-    }
-
-    private static Player? PickHaunter(Creature receiver, int dealt, ulong lastCardPlayer)
-    {
-        IReadOnlyList<Player> players = receiver.CombatState?.Players ?? Array.Empty<Player>();
-        List<Player> haunters = players.Where(p => p.Creature.GetPower<HauntPower>()?.Amount == dealt).ToList();
-        if (haunters.Count == 0) return null;
-        return haunters.FirstOrDefault(p => p.NetId == lastCardPlayer) ?? (haunters.Count == 1 ? haunters[0] : null);
-    }
+    private static bool TryPayFromLedger(RunStatsSnapshot snapshot, PowerModel power, int dealt, Action<ulong, long> credit) =>
+        snapshot.StackLedger.TryGetValue(LedgerKey(power), out var owned) && StackAttribution.PayFromLedger(owned, dealt, credit);
 
     private static string LedgerKey(PowerModel power)
     {

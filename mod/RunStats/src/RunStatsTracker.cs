@@ -32,6 +32,7 @@ public sealed class RunStatsTracker
         CombatManager.Instance.History.Changed += OnHistoryChanged;
         DoomKillPatch.DoomKilled += OnDoomKilled;
         PetHealPatch.PetHealed += OnPetHealed;
+        MissingDamagePatch.DamageUnrecorded += OnUnrecordedDamage;
         GD.Print("[RunStats] attached; run files under " + StatsFile.Directory);
     }
 
@@ -84,6 +85,16 @@ public sealed class RunStatsTracker
     private void OnHistoryChanged()
     {
         Update(ApplyNewEntries);
+    }
+
+    private void OnUnrecordedDamage(DamageReceivedEntry entry)
+    {
+        Update(snapshot =>
+        {
+            if (!snapshot.InCombat) return;
+            ApplyNewEntries(snapshot);
+            Record(snapshot, entry);
+        });
     }
 
     private void OnPetHealed(Creature pet, int healed)
@@ -196,7 +207,7 @@ public sealed class RunStatsTracker
                 }
                 else if (damage.Dealer == null)
                 {
-                    SourcelessDamage.Credit(snapshot, damage.Receiver, dealt, (netId, amount) => InProgressFor(snapshot, netId).Damage += amount);
+                    SourcelessDamage.Credit(snapshot, damage.Receiver, dealt, damage.Result.WasTargetKilled, (netId, amount) => InProgressFor(snapshot, netId).Damage += amount);
                 }
                 return;
             }

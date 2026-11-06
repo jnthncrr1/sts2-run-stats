@@ -44,6 +44,7 @@ because their multiplicative effect has no equally clean attribution.
 | `mod/RunStats/src/StatsHttpServer.cs` | Serves the viewer on `http://localhost:8765` from inside the game |
 | `mod/RunStats/src/StatsFile.cs` | Writes `RunStats/current.json` and per-run files under the game's user data dir |
 | `mod/RunStats/index.html` | The browser table and per-floor charts (polls `/stats.json` once a second) |
+| `tests/RunStats.Tests/` | Game-free checks of the attribution rules: `dotnet run --project tests/RunStats.Tests` |
 | `tools/` | `restore-modded-progress.sh` / `.ps1`: repair the modded save profile after a Steam Cloud collision |
 | `dist/` | `README.md` for friends; `RunStats.zip` (gitignored) bundles it with the DLL, manifest and scripts |
 | `notes/` | Research notes from the game's XML docs |
@@ -121,10 +122,11 @@ charts read.
 Every client in a multiplayer run executes the full deterministic combat simulation,
 and the game records each action in `CombatManager.Instance.History` (damage received,
 block gained, power received, each tagged with the responsible creature). The mod
-subscribes to that history's `Changed` event for everything except five read-only Harmony
-hooks: the Doom kill (no history entry), pet healing (same), potion use (its entry is logged
-after the effects), the damage pipeline (to replay it for prevented damage) and temporary
-Strength expiry. Every hook body is wrapped so a failure inside the mod
+subscribes to that history's `Changed` event for everything except six read-only Harmony
+hooks: the Doom kill (no history entry), pet healing (same), the hit that ends a fight (the game
+skips its history entry once no primary enemy is alive), potion use (its entry is logged after
+the effects), the damage pipeline (to replay it for prevented damage) and temporary Strength
+expiry. Every hook body is wrapped so a failure inside the mod
 only logs a warning. Nothing the mod does changes game state, so it cannot affect gameplay or
 cause desyncs. `affects_gameplay` is false in the manifest, which
 also keeps the game from treating it as a mod mismatch between players.
